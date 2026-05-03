@@ -19,7 +19,7 @@ export async function buildSite(userConfig) {
 
   for (const note of notes) {
     const markdown = convertMarkdown(note, { index, config, backlinks })
-    const outputPath = path.join(outDir, `${note.route.replace(/^\/+/, '')}.md`)
+    const outputPath = path.join(outDir, `${note.outputRoute.replace(/^\/+/, '')}.md`)
     await fs.mkdir(path.dirname(outputPath), { recursive: true })
     await fs.writeFile(outputPath, markdown, 'utf8')
   }

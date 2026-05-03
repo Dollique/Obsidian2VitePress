@@ -88,3 +88,65 @@ test('can fail unresolved links when configured', async () => {
     /Unresolved wikilink/
   )
 })
+
+test('uses generated route prefix when outDir is inside docs', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'o2vp-'))
+  const cwd = process.cwd()
+
+  process.chdir(tmp)
+
+  try {
+    const vault = path.join(tmp, 'vault')
+
+    await mkdir(vault, { recursive: true })
+    await writeFile(path.join(vault, 'Alpha.md'), 'Alpha links to [[Beta]] and [[Missing Note]].\n', 'utf8')
+    await writeFile(path.join(vault, 'Beta.md'), '# Beta\n', 'utf8')
+
+    await buildSite({
+      vaults: [{ name: 'main', root: vault, routeBase: '/' }],
+      outDir: 'docs/generated',
+      brokenLinks: 'route'
+    })
+
+    const alpha = await readFile(path.join(tmp, 'docs/generated/alpha.md'), 'utf8')
+    const beta = await readFile(path.join(tmp, 'docs/generated/beta.md'), 'utf8')
+
+    assert.match(alpha, /\[Beta\]\(\/generated\/beta\)/)
+    assert.match(alpha, /\[Missing Note\]\(\/generated\/missing-note\)/)
+    assert.match(beta, /- \[Alpha\]\(\/generated\/alpha\)/)
+  } finally {
+    process.chdir(cwd)
+  }
+})
+
+test('does not scan its own generated output when vault root contains outDir', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'o2vp-'))
+  const cwd = process.cwd()
+
+  process.chdir(tmp)
+
+  try {
+    const docs = path.join(tmp, 'docs')
+
+    await mkdir(path.join(docs, 'generated'), { recursive: true })
+    await writeFile(path.join(docs, 'Alpha.md'), 'Alpha links to [[Beta]].\n', 'utf8')
+    await writeFile(path.join(docs, 'Beta.md'), '# Beta\n', 'utf8')
+    await writeFile(path.join(docs, 'generated', 'Old.md'), 'Old generated file.\n', 'utf8')
+
+    await buildSite({
+      vaults: [{ name: 'main', root: docs, routeBase: '/' }],
+      outDir: 'docs/generated',
+      brokenLinks: 'route'
+    })
+
+    const alpha = await readFile(path.join(tmp, 'docs/generated/alpha.md'), 'utf8')
+
+    assert.match(alpha, /\[Beta\]\(\/generated\/beta\)/)
+    await assert.rejects(
+      () => readFile(path.join(tmp, 'docs/generated/generated/old.md'), 'utf8'),
+      /ENOENT/
+    )
+  } finally {
+    process.chdir(cwd)
+  }
+})

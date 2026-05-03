@@ -27,6 +27,10 @@ export function normalizeRouteBase(routeBase = '') {
 }
 
 export function routeForNote(note, config) {
+  return joinRoutes(config.outputRouteBase, outputRouteForNote(note, config))
+}
+
+export function outputRouteForNote(note, config) {
   const routeBase = normalizeRouteBase(note.vault.routeBase)
   const strategy = config.slug?.strategy ?? 'vitepress'
   const custom = config.slug?.custom
@@ -50,7 +54,10 @@ export function routeForUncreatedNote(target, sourceNote, config) {
   const routeBase = normalizeRouteBase(sourceNote?.vault?.routeBase)
   const strategy = config.slug?.strategy ?? 'vitepress'
   const withoutAnchor = target.split('#')[0]
-  return normalizeGeneratedRoute(createSlug(withoutAnchor, strategy), routeBase)
+  return joinRoutes(
+    config.outputRouteBase,
+    normalizeGeneratedRoute(createSlug(withoutAnchor, strategy), routeBase)
+  )
 }
 
 export function anchorSlug(value) {
@@ -64,4 +71,14 @@ function normalizeGeneratedRoute(route, routeBase) {
     .replace(/^\/+|\/+$/g, '')
 
   return `${routeBase}/${cleanRoute}`.replace(/\/+/g, '/')
+}
+
+function joinRoutes(...parts) {
+  const clean = parts
+    .filter(Boolean)
+    .map((part) => String(part).replace(/^\/+|\/+$/g, ''))
+    .filter(Boolean)
+    .join('/')
+
+  return `/${clean}`.replace(/\/+/g, '/')
 }

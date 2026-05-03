@@ -1,5 +1,7 @@
 export const defaultConfig = {
+  docsDir: 'docs',
   outDir: 'docs/generated',
+  outputRouteBase: undefined,
   cleanOutDir: true,
   slug: {
     strategy: 'vitepress'
@@ -25,7 +27,7 @@ export function resolveConfig(config) {
     throw new Error('Obsidian2VitePress requires at least one configured vault.')
   }
 
-  return {
+  const resolved = {
     ...defaultConfig,
     ...config,
     slug: {
@@ -45,4 +47,21 @@ export function resolveConfig(config) {
       ...config.backlinks
     }
   }
+
+  resolved.outputRouteBase = config.outputRouteBase ?? deriveOutputRouteBase(resolved.outDir, resolved.docsDir)
+  return resolved
+}
+
+function deriveOutputRouteBase(outDir, docsDir) {
+  if (!outDir || outDir.startsWith('/')) return ''
+
+  const cleanOutDir = outDir.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\/+$/g, '')
+  const cleanDocsDir = docsDir.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\/+$/g, '')
+
+  if (cleanOutDir === cleanDocsDir) return ''
+  if (cleanOutDir.startsWith(`${cleanDocsDir}/`)) {
+    return `/${cleanOutDir.slice(cleanDocsDir.length + 1)}`
+  }
+
+  return ''
 }

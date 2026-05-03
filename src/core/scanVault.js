@@ -1,13 +1,19 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { routeForNote } from './slug.js'
+import { outputRouteForNote, routeForNote } from './slug.js'
 
 export async function scanVaults(config) {
   const notes = []
+  const outDir = path.resolve(config.outDir)
+  const generatedRelativeRoot = normalizeGeneratedRelativeRoot(config.outputRouteBase)
 
   for (const vault of config.vaults) {
     const root = path.resolve(vault.root)
-    const files = await walk(root)
+    const files = await walk(root, {
+      root,
+      outDir,
+      generatedRelativeRoot
+    })
 
     for (const file of files) {
       if (!file.endsWith('.md')) continue
@@ -37,6 +43,7 @@ function createNoteIndex(notes, config) {
   const byTarget = new Map()
 
   for (const note of notes) {
+    note.outputRoute = outputRouteForNote(note, config)
     note.route = routeForNote(note, config)
 
     if (byRoute.has(note.route)) {
@@ -71,7 +78,7 @@ export function normalizeTarget(target) {
     .toLowerCase()
 }
 
-async function walk(dir) {
+async function walk(dir, options) {
   const entries = await fs.readdir(dir, { withFileTypes: true })
   const files = []
 
@@ -79,8 +86,11 @@ async function walk(dir) {
     if (entry.name === '.obsidian' || entry.name === '.git') continue
 
     const fullPath = path.join(dir, entry.name)
+    if (isInsideOrEqual(fullPath, options.outDir)) continue
+    if (isGeneratedOutputPath(fullPath, options)) continue
+
     if (entry.isDirectory()) {
-      files.push(...await walk(fullPath))
+      files.push(...await walk(fullPath, options))
     } else if (entry.isFile()) {
       files.push(fullPath)
     }
@@ -103,4 +113,20 @@ function isIncluded(relativePath, vault) {
 
 function slash(value) {
   return value.replace(/\\/g, '/')
+}
+
+function isInsideOrEqual(candidate, parent) {
+  const relative = path.relative(parent, candidate)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+function normalizeGeneratedRelativeRoot(outputRouteBase) {
+  return String(outputRouteBase ?? '').replace(/^\/+|\/+$/g, '')
+}
+
+function isGeneratedOutputPath(candidate, options) {
+  if (!options.generatedRelativeRoot) return false
+
+  const relative = slash(path.relative(options.root, candidate))
+  return relative === options.generatedRelativeRoot || relative.startsWith(`${options.generatedRelativeRoot}/`)
 }
