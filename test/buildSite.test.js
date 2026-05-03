@@ -1,0 +1,90 @@
+import assert from 'node:assert/strict'
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import test from 'node:test'
+import { buildSite } from '../src/core/buildSite.js'
+
+test('converts wikilinks and appends backlinks', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'o2vp-'))
+  const vault = path.join(tmp, 'vault')
+  const outDir = path.join(tmp, 'docs')
+
+  await mkdir(vault, { recursive: true })
+  await writeFile(path.join(vault, 'Alpha.md'), 'Alpha links to [[Beta]].\n', 'utf8')
+  await writeFile(path.join(vault, 'Beta.md'), '# Beta\n', 'utf8')
+
+  await buildSite({
+    vaults: [{ name: 'main', root: vault }],
+    outDir
+  })
+
+  const alpha = await readFile(path.join(outDir, 'alpha.md'), 'utf8')
+  const beta = await readFile(path.join(outDir, 'beta.md'), 'utf8')
+
+  assert.match(alpha, /\[Beta\]\(\/beta\)/)
+  assert.match(beta, /## Backlinks/)
+  assert.match(beta, /- \[Alpha\]\(\/alpha\)/)
+})
+
+test('routes uncreated wikilinks to missing vitepress documents', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'o2vp-'))
+  const vault = path.join(tmp, 'vault')
+  const outDir = path.join(tmp, 'docs')
+
+  await mkdir(vault, { recursive: true })
+  await writeFile(path.join(vault, 'Alpha.md'), 'Alpha links to [[Missing Note]].\n', 'utf8')
+
+  await buildSite({
+    vaults: [{ name: 'main', root: vault }],
+    outDir
+  })
+
+  const alpha = await readFile(path.join(outDir, 'alpha.md'), 'utf8')
+
+  assert.match(alpha, /\[Missing Note\]\(\/missing-note\)/)
+})
+
+test('supports multiple vault route bases for backlinks', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'o2vp-'))
+  const personal = path.join(tmp, 'personal')
+  const work = path.join(tmp, 'work')
+  const outDir = path.join(tmp, 'docs')
+
+  await mkdir(personal, { recursive: true })
+  await mkdir(work, { recursive: true })
+  await writeFile(path.join(personal, 'Alpha.md'), 'Alpha links to [[Beta]].\n', 'utf8')
+  await writeFile(path.join(work, 'Beta.md'), '# Beta\n', 'utf8')
+
+  await buildSite({
+    vaults: [
+      { name: 'personal', root: personal, routeBase: '/personal' },
+      { name: 'work', root: work, routeBase: '/work' }
+    ],
+    outDir
+  })
+
+  const alpha = await readFile(path.join(outDir, 'personal/alpha.md'), 'utf8')
+  const beta = await readFile(path.join(outDir, 'work/beta.md'), 'utf8')
+
+  assert.match(alpha, /\[Beta\]\(\/work\/beta\)/)
+  assert.match(beta, /- \[Alpha\]\(\/personal\/alpha\)/)
+})
+
+test('can fail unresolved links when configured', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'o2vp-'))
+  const vault = path.join(tmp, 'vault')
+  const outDir = path.join(tmp, 'docs')
+
+  await mkdir(vault, { recursive: true })
+  await writeFile(path.join(vault, 'Alpha.md'), 'Alpha links to [[Missing Note]].\n', 'utf8')
+
+  await assert.rejects(
+    () => buildSite({
+      vaults: [{ name: 'main', root: vault }],
+      outDir,
+      brokenLinks: 'fail'
+    }),
+    /Unresolved wikilink/
+  )
+})
