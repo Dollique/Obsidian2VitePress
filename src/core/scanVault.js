@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { outputRouteForNote, routeForNote } from './slug.js'
+import { parseFrontmatter } from './frontmatter.js'
 
 export async function scanVaults(config) {
   const notes = []
@@ -23,14 +24,26 @@ export async function scanVaults(config) {
 
       const content = await fs.readFile(file, 'utf8')
       const basename = path.basename(relativePath, '.md')
-      notes.push({
+      
+      // Create note object first
+      const note = {
         vault,
         root,
         absolutePath: file,
         relativePath,
         basename,
         content
-      })
+      }
+      
+      // Apply filtering if enabled
+      if (config.filterByPublished) {
+        const frontmatter = parseFrontmatter(content);
+        if (!frontmatter.published) {
+          continue; // Skip this note if not published
+        }
+      }
+      
+      notes.push(note)
     }
   }
 

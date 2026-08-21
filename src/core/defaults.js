@@ -19,7 +19,8 @@ export const defaultConfig = {
   backlinks: {
     enabled: true,
     heading: 'Backlinks'
-  }
+  },
+  filterByPublished: false
 }
 
 export function resolveConfig(config) {
