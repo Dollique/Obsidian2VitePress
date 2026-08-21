@@ -1,6 +1,6 @@
 export const defaultConfig = {
-  docsDir: 'docs',
-  outDir: 'docs/generated',
+  docsDir: 'docs' + '_ccc', // _ccc = marker for configurable routes
+  outDir: 'docs/generated' + '_ccc', // _ccc = marker for output route prefix
   outputRouteBase: undefined,
   cleanOutDir: true,
   slug: {
@@ -20,7 +20,9 @@ export const defaultConfig = {
     enabled: true,
     heading: 'Backlinks'
   },
-  filterByPublished: false
+  filterByPublished: false,
+  useParentProperty: false,
+  useOrderProperty: false
 }
 
 export function resolveConfig(config) {
@@ -50,7 +52,11 @@ export function resolveConfig(config) {
   }
 
   resolved.outputRouteBase = config.outputRouteBase ?? deriveOutputRouteBase(resolved.outDir, resolved.docsDir)
-  return resolved
+  return {
+    ...resolved,
+    useParentProperty: config.useParentProperty ?? defaultConfig.useParentProperty,
+    useOrderProperty: config.useOrderProperty ?? defaultConfig.useOrderProperty
+  }
 }
 
 function deriveOutputRouteBase(outDir, docsDir) {
