@@ -141,6 +141,11 @@ const createNoteIndex = (notes, config) => {
     addTarget(byTarget, note.relativePath.replace(/\.md$/i, ''), note);
     addTarget(byTarget, note.relativePath, note);
 
+    // If home rewrite is active and note is marked as home layout, also index under 'index'
+    if (config.useHomeRewrite && String(note.frontmatter?.layout).trim().toLowerCase() === 'home') {
+      addTarget(byTarget, 'index', note);
+    }
+
     // If order property is active, also index by ordered target name
     if (config.useOrderProperty && note.frontmatter?.order !== undefined && note.frontmatter?.order !== null && note.frontmatter?.order !== '' && !isNaN(Number(note.frontmatter.order))) {
       const orderedName = `${note.frontmatter.order}-${note.basename}`;

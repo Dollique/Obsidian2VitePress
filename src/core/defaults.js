@@ -1,6 +1,6 @@
 export const defaultConfig = {
-  docsDir: 'docs' + '_ccc', // _ccc = marker for configurable routes
-  outDir: 'docs/generated' + '_ccc', // _ccc = marker for output route prefix
+  docsDir: 'docs',
+  outDir: 'docs/generated',
   outputRouteBase: undefined,
   cleanOutDir: true,
   slug: {
@@ -22,7 +22,8 @@ export const defaultConfig = {
   },
   filterByPublished: false,
   useParentProperty: false,
-  useOrderProperty: false
+  useOrderProperty: false,
+  useHomeRewrite: false
 }
 
 export function resolveConfig(config) {
@@ -55,7 +56,8 @@ export function resolveConfig(config) {
   return {
     ...resolved,
     useParentProperty: config.useParentProperty ?? defaultConfig.useParentProperty,
-    useOrderProperty: config.useOrderProperty ?? defaultConfig.useOrderProperty
+    useOrderProperty: config.useOrderProperty ?? defaultConfig.useOrderProperty,
+    useHomeRewrite: config.useHomeRewrite ?? defaultConfig.useHomeRewrite
   }
 }
 

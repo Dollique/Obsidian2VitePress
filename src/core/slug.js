@@ -48,13 +48,19 @@ const joinRoutes = (...parts) => {
   return normalizeRoute(clean);
 };
 
-// Helper: Get ordered basename if useOrderProperty is active
-const getOrderedBasename = (note, config) => {
-  if (!config.useOrderProperty) return note.basename;
+// Helper: Determine target basename taking order and home rewrite options into account
+const getTargetBasename = (note, config) => {
+  // Check for Home Rewrite rule first
+  if (config.useHomeRewrite && String(note.frontmatter?.layout).trim().toLowerCase() === 'home') {
+    return 'index';
+  }
 
-  const orderVal = note.frontmatter?.order;
-  if (orderVal !== undefined && orderVal !== null && orderVal !== '' && !isNaN(Number(orderVal))) {
-    return `${orderVal}-${note.basename}`;
+  // Check for Order Property rule second
+  if (config.useOrderProperty) {
+    const orderVal = note.frontmatter?.order;
+    if (orderVal !== undefined && orderVal !== null && orderVal !== '' && !isNaN(Number(orderVal))) {
+      return `${orderVal}-${note.basename}`;
+    }
   }
 
   return note.basename;
@@ -76,7 +82,7 @@ export const outputRouteForNote = (note, config) => {
   const custom = config.slug?.custom;
   const useParentProperty = config.useParentProperty;
 
-  const targetBasename = getOrderedBasename(note, config);
+  const targetBasename = getTargetBasename(note, config);
 
   // Use parent property if enabled
   if (useParentProperty) {
@@ -100,9 +106,8 @@ export const outputRouteForNote = (note, config) => {
     );
   }
 
-  // Default: Use relative path (replace original basename with ordered basename if applicable)
   let relativePath = note.relativePath;
-  if (config.useOrderProperty && targetBasename !== note.basename) {
+  if (targetBasename !== note.basename) {
     const dir = note.relativePath.includes('/')
       ? note.relativePath.substring(0, note.relativePath.lastIndexOf('/'))
       : '';
