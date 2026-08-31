@@ -18,8 +18,8 @@ A local VitePress plugin that converts and imports Obsidian vault notes into Vit
 
 ```js
 // docs/.vitepress/config.js
-import { defineConfig } from 'vitepress'
-import { obsidian2vitepress } from '../../src/index.js'
+import { defineConfig } from "vitepress";
+import { obsidian2vitepress } from "../../src/index.js";
 
 export default defineConfig({
   vite: {
@@ -27,19 +27,24 @@ export default defineConfig({
       obsidian2vitepress({
         vaults: [
           {
-            name: 'main',
-            root: '../vault',
-            routeBase: '/'
-          }
+            name: "main",
+            root: "../vault",
+            routeBase: "/",
+          },
         ],
-        outDir: 'docs/generated',
-        brokenLinks: 'route',
+        outDir: "docs/generated",
+        brokenLinks: "route",
         // Optional feature flags
-        filterByPublished: true,  // Include only notes where `published: true`
-        useParentProperty: true,  // Route files based on `parent:` frontmatter
-        useOrderProperty: true,   // Prefix file slugs with numerical `order:` frontmatter
-        useHomeRewrite: true     // Save notes with `layout: home` as `index.md`
-      })
-    ]
-  }
-})
+        filterByPublished: true, // Include only notes where `published: true`
+        useParentProperty: true, // Route files based on `parent:` frontmatter
+        useOrderProperty: true, // Prefix file slugs with numerical `order:` frontmatter
+        useHomeRewrite: true, // Save notes with `layout: home` as `index.md`
+        callouts: {
+          wrap: true, // wrap all callouts in a `div` wrapper element
+          fallbackType: "info", // if a custom callback is used fall back to this type
+        },
+      }),
+    ],
+  },
+});
+```

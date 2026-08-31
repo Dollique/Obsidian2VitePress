@@ -57,7 +57,9 @@ src/
 The eventual npm package should expose:
 
 ```ts
-export function obsidian2vitepress(config: Obsidian2VitePressConfig): VitePressPlugin
+export function obsidian2vitepress(
+  config: Obsidian2VitePressConfig,
+): VitePressPlugin;
 ```
 
 Exact exported type should be adjusted to match VitePress plugin integration once implementation confirms the best hook point.
@@ -68,53 +70,54 @@ Proposed config:
 
 ```ts
 export interface Obsidian2VitePressConfig {
-  vaults: VaultConfig[]
-  outDir: string
-  cleanOutDir?: boolean
-  slug?: SlugConfig
-  brokenLinks?: BrokenLinkPolicy
-  unsupportedSyntax?: UnsupportedSyntaxPolicy
-  assets?: AssetConfig
-  embeds?: EmbedConfig
-  backlinks?: BacklinkConfig
+  vaults: VaultConfig[];
+  outDir: string;
+  cleanOutDir?: boolean;
+  slug?: SlugConfig;
+  brokenLinks?: BrokenLinkPolicy;
+  unsupportedSyntax?: UnsupportedSyntaxPolicy;
+  assets?: AssetConfig;
+  embeds?: EmbedConfig;
+  backlinks?: BacklinkConfig;
+  callouts?: CalloutConfig;
 }
 
 export interface VaultConfig {
-  name: string
-  root: string
-  include?: string[]
-  exclude?: string[]
-  routeBase?: string
+  name: string;
+  root: string;
+  include?: string[];
+  exclude?: string[];
+  routeBase?: string;
 }
 
 export interface SlugConfig {
-  strategy?: 'vitepress' | 'kebab' | 'preserve' | 'custom'
-  custom?: (input: SlugInput) => string
+  strategy?: "vitepress" | "kebab" | "preserve" | "custom";
+  custom?: (input: SlugInput) => string;
 }
 
 export interface SlugInput {
-  vaultName: string
-  sourcePath: string
-  basename: string
-  heading?: string
+  vaultName: string;
+  sourcePath: string;
+  basename: string;
+  heading?: string;
 }
 
-export type BrokenLinkPolicy = 'route' | 'fail' | 'warn' | 'preserve'
-export type UnsupportedSyntaxPolicy = 'fail'
+export type BrokenLinkPolicy = "route" | "fail" | "warn" | "preserve";
+export type UnsupportedSyntaxPolicy = "fail";
 
 export interface AssetConfig {
-  outDir?: string
-  preserveFilenames?: boolean
+  outDir?: string;
+  preserveFilenames?: boolean;
 }
 
 export interface EmbedConfig {
-  notes?: 'inline' | 'card' | 'link'
-  assets?: 'copy' | 'link'
+  notes?: "inline" | "card" | "link";
+  assets?: "copy" | "link";
 }
 
 export interface BacklinkConfig {
-  enabled?: boolean
-  heading?: string
+  enabled?: boolean;
+  heading?: string;
 }
 ```
 
@@ -138,6 +141,10 @@ Defaults:
     enabled: true,
     heading: 'Backlinks'
   }
+  callouts: {
+    wrap: true,
+    fallbackType: 'info'
+  }
 }
 ```
 
@@ -156,16 +163,16 @@ Route examples:
 ```ts
 vaults: [
   {
-    name: 'personal',
-    root: '../PersonalVault',
-    routeBase: '/personal'
+    name: "personal",
+    root: "../PersonalVault",
+    routeBase: "/personal",
   },
   {
-    name: 'work',
-    root: '../WorkVault',
-    routeBase: '/work'
-  }
-]
+    name: "work",
+    root: "../WorkVault",
+    routeBase: "/work",
+  },
+];
 ```
 
 If two generated pages resolve to the same output route, the plugin must fail with a collision error that lists both source files.
@@ -257,17 +264,26 @@ Support Obsidian callouts:
 ```md
 > [!note]
 > Content
+
+> [!note]- Folded by default
+> Content
+
+> [!note]+ Expanded, collapsible
+> Content
 ```
 
-Convert to VitePress custom containers where possible:
+Conversion behavior:
 
-```md
-::: info
-Content
-:::
-```
+- The type is mapped to a VitePress custom container (see mapping below).
+- A `-` or `+` marker forces a `details` (foldable) container, overriding the
+  type's normal mapping. Without a marker, the type mapping decides.
+- `+` additionally adds an `open` class to the wrapper so the theme can expand
+  the `<details>` on render (VitePress has no "expanded-but-collapsible" mode).
+- Unknown callout types fall back to `info` rather than failing, so custom
+  callouts (e.g. `[!musicbox]`) render instead of crashing the build. The
+  fallback type is configurable.
 
-Initial mapping:
+Type mapping (used when no `-`/`+` marker is present):
 
 ```text
 note      -> info
@@ -282,9 +298,27 @@ danger    -> danger
 bug       -> danger
 example   -> details
 quote     -> details
+unknown   -> info  (fallback)
 ```
 
-Unknown callout types should fail by default because unsupported syntax is a bug.
+Callout-specific configuration:
+
+```ts
+export interface CalloutConfig {
+  wrap?: boolean; // wrap each callout in a <div class="callout callout-<type>">
+  fallbackType?: string; // container type used for unknown callout types (default 'info')
+}
+```
+
+Default: `{ wrap: true, fallbackType: 'info' }`.
+
+When `wrap` is true, the converter emits:
+
+```html
+<div class="callout callout-musicbox">::: details Title content :::</div>
+```
+
+so themes can target callouts by their original Obsidian type id.
 
 ### Tags
 
@@ -325,6 +359,7 @@ Support Obsidian-style inline and block math:
 
 ```md
 $x + y$
+
 $$
 x + y
 $$
@@ -363,7 +398,7 @@ V1 should support resolving block links. Rendering block IDs may require injecti
 Unsupported syntax policy is intentionally strict:
 
 ```ts
-unsupportedSyntax: 'fail'
+unsupportedSyntax: "fail";
 ```
 
 Unsupported Obsidian constructs should fail with:
@@ -381,7 +416,7 @@ This keeps gaps visible during development and prevents silent publishing errors
 Broken wikilinks are configurable. The default is to render a normal Markdown link to the route where the note would exist, leaving the missing document to VitePress and the deployed site to handle.
 
 ```ts
-brokenLinks: 'route' | 'fail' | 'warn' | 'preserve'
+brokenLinks: "route" | "fail" | "warn" | "preserve";
 ```
 
 Behavior:

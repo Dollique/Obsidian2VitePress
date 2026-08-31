@@ -1,34 +1,40 @@
 export const defaultConfig = {
-  docsDir: 'docs',
-  outDir: 'docs/generated',
+  docsDir: "docs",
+  outDir: "docs/generated",
   outputRouteBase: undefined,
   cleanOutDir: true,
   slug: {
-    strategy: 'vitepress'
+    strategy: "vitepress",
   },
-  brokenLinks: 'route',
-  unsupportedSyntax: 'fail',
+  brokenLinks: "route",
+  unsupportedSyntax: "fail",
   assets: {
-    outDir: 'assets',
-    preserveFilenames: true
+    outDir: "assets",
+    preserveFilenames: true,
   },
   embeds: {
-    notes: 'inline',
-    assets: 'copy'
+    notes: "inline",
+    assets: "copy",
   },
   backlinks: {
     enabled: true,
-    heading: 'Backlinks'
+    heading: "Backlinks",
   },
   filterByPublished: false,
   useParentProperty: false,
   useOrderProperty: false,
-  useHomeRewrite: false
-}
+  useHomeRewrite: false,
+  callouts: {
+    wrap: true,
+    fallbackType: "info",
+  },
+};
 
 export function resolveConfig(config) {
   if (!config || !Array.isArray(config.vaults) || config.vaults.length === 0) {
-    throw new Error('Obsidian2VitePress requires at least one configured vault.')
+    throw new Error(
+      "Obsidian2VitePress requires at least one configured vault.",
+    );
   }
 
   const resolved = {
@@ -36,41 +42,50 @@ export function resolveConfig(config) {
     ...config,
     slug: {
       ...defaultConfig.slug,
-      ...config.slug
+      ...config.slug,
     },
     assets: {
       ...defaultConfig.assets,
-      ...config.assets
+      ...config.assets,
     },
     embeds: {
       ...defaultConfig.embeds,
-      ...config.embeds
+      ...config.embeds,
     },
     backlinks: {
       ...defaultConfig.backlinks,
-      ...config.backlinks
-    }
-  }
+      ...config.backlinks,
+    },
+  };
 
-  resolved.outputRouteBase = config.outputRouteBase ?? deriveOutputRouteBase(resolved.outDir, resolved.docsDir)
+  resolved.outputRouteBase =
+    config.outputRouteBase ??
+    deriveOutputRouteBase(resolved.outDir, resolved.docsDir);
   return {
     ...resolved,
-    useParentProperty: config.useParentProperty ?? defaultConfig.useParentProperty,
+    useParentProperty:
+      config.useParentProperty ?? defaultConfig.useParentProperty,
     useOrderProperty: config.useOrderProperty ?? defaultConfig.useOrderProperty,
-    useHomeRewrite: config.useHomeRewrite ?? defaultConfig.useHomeRewrite
-  }
+    useHomeRewrite: config.useHomeRewrite ?? defaultConfig.useHomeRewrite,
+  };
 }
 
 function deriveOutputRouteBase(outDir, docsDir) {
-  if (!outDir || outDir.startsWith('/')) return ''
+  if (!outDir || outDir.startsWith("/")) return "";
 
-  const cleanOutDir = outDir.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\/+$/g, '')
-  const cleanDocsDir = docsDir.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\/+$/g, '')
+  const cleanOutDir = outDir
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .replace(/\/+$/g, "");
+  const cleanDocsDir = docsDir
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .replace(/\/+$/g, "");
 
-  if (cleanOutDir === cleanDocsDir) return ''
+  if (cleanOutDir === cleanDocsDir) return "";
   if (cleanOutDir.startsWith(`${cleanDocsDir}/`)) {
-    return `/${cleanOutDir.slice(cleanDocsDir.length + 1)}`
+    return `/${cleanOutDir.slice(cleanDocsDir.length + 1)}`;
   }
 
-  return ''
+  return "";
 }
