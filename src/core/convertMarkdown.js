@@ -147,7 +147,7 @@ function convertCallouts(markdown, config) {
   return output.join("\n");
 }
 
-function calloutType(type) {
+function calloutType(type, config) {
   const mapping = {
     note: "info",
     info: "info",
