@@ -80,6 +80,9 @@ function convertEmbed(link, resolved, sourceNote) {
 function convertCallouts(markdown, config) {
   const calloutConfig = config?.callouts ?? {};
   const wrap = !!calloutConfig.wrap;
+  const typeAsLabelFallback = !!calloutConfig.typeAsLabelFallback;
+  const prettifyLabels = calloutConfig.prettifyLabels !== false;
+
   const lines = markdown.split("\n");
   const output = [];
   let inCallout = false;
@@ -116,7 +119,14 @@ function convertCallouts(markdown, config) {
       // regardless of the type. No marker -> use the normal type mapping.
       const foldable = marker === "-" || marker === "+";
       const vpType = foldable ? "details" : calloutType(rawType, config);
-      const label = title ? ` ${title}` : "";
+
+      const label = title
+        ? ` ${title}`
+        : foldable || typeAsLabelFallback
+          ? ` ${labelFromType(rawType, prettifyLabels)}`
+          : isKnownCalloutType(rawType, config)
+            ? ""
+            : ` ${labelFromType(rawType, prettifyLabels)}`;
 
       openWrapper(rawType, marker);
       output.push(`::: ${vpType}${label}`);
@@ -147,8 +157,8 @@ function convertCallouts(markdown, config) {
   return output.join("\n");
 }
 
-function calloutType(type, config) {
-  const mapping = {
+function calloutTypeMapping() {
+  return {
     note: "info",
     info: "info",
     todo: "info",
@@ -162,10 +172,28 @@ function calloutType(type, config) {
     example: "details",
     quote: "details",
   };
+}
 
+function labelFromType(type, prettify) {
+  return prettify ? prettifyType(type) : type;
+}
+
+function calloutType(type, config) {
   const fallbackCalloutType = config?.callouts?.fallbackType ?? "info";
+  return calloutTypeMapping()[type.toLowerCase()] ?? fallbackCalloutType;
+}
 
-  return mapping[type.toLowerCase()] ?? fallbackCalloutType;
+function isKnownCalloutType(type, config) {
+  const mapping = calloutTypeMapping();
+  return Object.prototype.hasOwnProperty.call(mapping, type.toLowerCase());
+}
+
+function prettifyType(type) {
+  // 'musicbox' -> 'Musicbox', 'my-cool-type' -> 'My Cool Type'
+  return type
+    .split(/[-_]/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function appendBacklinks(markdown, note, backlinks, config) {

@@ -27,6 +27,8 @@ export const defaultConfig = {
   callouts: {
     wrap: true,
     fallbackType: "info",
+    typeAsLabelFallback: true,
+    prettifyLabels: true,
   },
 };
 

@@ -143,7 +143,9 @@ Defaults:
   }
   callouts: {
     wrap: true,
-    fallbackType: 'info'
+    fallbackType: 'info',
+    typeAsLabelFallback: true,
+    prettifyLabels: true,
   }
 }
 ```

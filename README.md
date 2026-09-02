@@ -42,6 +42,8 @@ export default defineConfig({
         callouts: {
           wrap: true, // wrap all callouts in a `div` wrapper element
           fallbackType: "info", // if a custom callback is used fall back to this type
+          typeAsLabelFallback: true, // if no title is provided, always use the type name as the label, e.g. `> [!success] ` becomes `::: success Success` instead of `::: success TIP`
+          prettifyLabels: true, // all labels are prettified
         },
       }),
     ],
