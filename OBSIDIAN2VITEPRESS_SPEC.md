@@ -126,27 +126,27 @@ Defaults:
 ```ts
 {
   cleanOutDir: true,
-  slug: { strategy: 'vitepress' },
-  brokenLinks: 'route',
-  unsupportedSyntax: 'fail',
+  slug: { strategy: "vitepress" },
+  brokenLinks: "route",
+  unsupportedSyntax: "fail",
   assets: {
-    outDir: 'assets',
-    preserveFilenames: true
+    outDir: "assets",
+    preserveFilenames: true,
   },
   embeds: {
-    notes: 'inline',
-    assets: 'copy'
+    notes: "inline",
+    assets: "copy",
   },
   backlinks: {
     enabled: true,
-    heading: 'Backlinks'
-  }
+    heading: "Backlinks",
+  },
   callouts: {
     wrap: true,
-    fallbackType: 'info',
+    fallbackType: "info",
     typeAsLabelFallback: true,
     prettifyLabels: true,
-  }
+  },
 }
 ```
 
@@ -284,6 +284,8 @@ Conversion behavior:
 - Unknown callout types fall back to `info` rather than failing, so custom
   callouts (e.g. `[!musicbox]`) render instead of crashing the build. The
   fallback type is configurable.
+- if the type === "secret" the callout is skipped (not rendered).
+- support for nested callouts using `> > [!type]` syntax.
 
 Type mapping (used when no `-`/`+` marker is present):
 

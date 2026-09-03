@@ -77,84 +77,337 @@ function convertEmbed(link, resolved, sourceNote) {
   return `<div class="obsidian-note-embed" data-source="${escapeHtml(sourceNote.relativePath)}"><a href="${resolved.route}">${escapeHtml(resolved.label)}</a></div>`;
 }
 
+/** CALLOUTS **/
+
 function convertCallouts(markdown, config) {
-  const calloutConfig = config?.callouts ?? {};
-  const wrap = !!calloutConfig.wrap;
-  const typeAsLabelFallback = !!calloutConfig.typeAsLabelFallback;
-  const prettifyLabels = calloutConfig.prettifyLabels !== false;
+  const document = parseCalloutDocument(markdown);
+  return renderCalloutDocument(document, config);
+}
 
+/**
+ * Parse Obsidian callouts into a nested document tree.
+ *
+ * A callout node contains an ordered `content` array which can contain
+ * both normal Markdown lines and nested callout nodes. This preserves
+ * the original position of nested callouts.
+ */
+function parseCalloutDocument(markdown) {
   const lines = markdown.split("\n");
-  const output = [];
-  let inCallout = false;
+  const document = [];
+  const stack = [];
 
-  const openWrapper = (rawType, marker) => {
-    if (!wrap) return;
-    const classes = ["callout", `callout-${rawType}`];
-    if (marker === "+") classes.push("open"); // + -> expanded-but-collapsible
-    output.push(`<div class="${classes.join(" ")}">`);
-    output.push(""); // blank line after opening wrapper
-  };
-
-  const closeWrapper = () => {
-    if (!wrap) return;
-    output.push(""); // blank line before closing wrapper
-    output.push("</div>");
-  };
+  let skippedSecretDepth = null;
 
   for (const line of lines) {
-    // Capture: 1=type, 2=collapsible marker (+ or -), 3=title
-    const callout = line.match(/^>\s*\[!([\w-]+)\]([+-])?\s*(.*)$/);
+    const blockquoteDepth = getBlockquoteDepth(line);
+    const callout = parseCalloutLine(line);
 
-    if (callout) {
-      if (inCallout) {
-        output.push(":::");
-        closeWrapper();
+    /*
+     * Secret callouts and everything nested inside them are skipped.
+     *
+     * We stop skipping once the blockquote depth becomes shallower
+     * than the secret callout.
+     */
+    if (skippedSecretDepth !== null) {
+      if (blockquoteDepth >= skippedSecretDepth) {
+        continue;
       }
 
-      const rawType = callout[1];
-      const marker = callout[2]; // "+" | "-" | undefined
-      const title = callout[3].trim();
+      skippedSecretDepth = null;
+    }
 
-      // A marker (+ or -) always forces a foldable 'details' container,
-      // regardless of the type. No marker -> use the normal type mapping.
-      const foldable = marker === "-" || marker === "+";
-      const vpType = foldable ? "details" : calloutType(rawType, config);
+    /*
+     * A callout starts a new node.
+     */
+    if (callout) {
+      closeCalloutsForNewCallout(stack, callout.depth);
 
-      const label = title
-        ? ` ${title}`
-        : foldable || typeAsLabelFallback
-          ? ` ${labelFromType(rawType, prettifyLabels)}`
-          : isKnownCalloutType(rawType, config)
-            ? ""
-            : ` ${labelFromType(rawType, prettifyLabels)}`;
+      /*
+       * Secret callouts are never added to the document tree.
+       */
+      if (callout.type.toLowerCase() === "secret") {
+        skippedSecretDepth = callout.depth;
+        continue;
+      }
 
-      openWrapper(rawType, marker);
-      output.push(`::: ${vpType}${label}`);
+      const node = createCalloutNode(callout);
 
-      inCallout = true;
+      appendNode(stack, document, node);
+      stack.push(node);
+
       continue;
     }
 
-    if (inCallout && line.startsWith(">")) {
-      output.push(line.replace(/^>\s?/, ""));
+    /*
+     * Remove callouts whose blockquote depth is deeper than
+     * the current line.
+     *
+     * Important: use `>` here, not `>=`.
+     *
+     * A line at the same depth still belongs to the current callout.
+     */
+    closeCalloutsForContent(stack, blockquoteDepth);
+
+    /*
+     * No active callout means this is normal document content.
+     */
+    if (stack.length === 0) {
+      document.push(line);
       continue;
     }
 
-    if (inCallout) {
-      output.push(":::");
-      closeWrapper();
-      inCallout = false;
-    }
+    /*
+     * The current line belongs to the active callout.
+     *
+     * Remove the blockquote prefixes belonging to the current
+     * callout hierarchy while preserving any deeper blockquote
+     * that is actual Markdown content.
+     */
+    const current = stack.at(-1);
 
-    output.push(line);
+    current.content.push(stripBlockquotes(line, current.depth));
   }
 
-  if (inCallout) {
-    output.push(":::");
-    closeWrapper();
+  return document;
+}
+
+/**
+ * Parse an Obsidian callout declaration.
+ *
+ * Examples:
+ *
+ * > [!story] Story
+ * > > [!musicbox] Music
+ * > > > [!warning]- Warning
+ */
+function parseCalloutLine(line) {
+  const match = line.match(
+    /^(?<prefix>(?:>\s*)+)\[!(?<type>[\w-]+)\](?<marker>[+-])?\s*(?<title>.*)$/,
+  );
+
+  if (!match) {
+    return null;
   }
 
-  return output.join("\n");
+  return {
+    depth: getBlockquoteDepth(match.groups.prefix),
+    type: match.groups.type,
+    marker: match.groups.marker ?? "",
+    title: match.groups.title.trim(),
+  };
+}
+
+function createCalloutNode(callout) {
+  return {
+    kind: "callout",
+    depth: callout.depth,
+    type: callout.type,
+    marker: callout.marker,
+    title: callout.title,
+    content: [],
+  };
+}
+
+/**
+ * Add a node to either the current callout or the document.
+ */
+function appendNode(stack, document, node) {
+  if (stack.length === 0) {
+    document.push(node);
+    return;
+  }
+
+  stack.at(-1).content.push(node);
+}
+
+/**
+ * When a new callout starts, anything at the same or deeper
+ * nesting level is no longer its parent.
+ *
+ * Example:
+ *
+ * depth 1: Story
+ * depth 2: Note
+ * depth 2: Warning
+ *
+ * When Warning starts, Note is popped.
+ */
+function closeCalloutsForNewCallout(stack, depth) {
+  while (stack.length > 0 && stack.at(-1).depth >= depth) {
+    stack.pop();
+  }
+}
+
+/**
+ * When processing normal content, only pop callouts that are
+ * deeper than the current line.
+ *
+ * Example:
+ *
+ * depth 1: Story
+ * depth 2: Note
+ * depth 1: Back to story
+ *
+ * Note is popped, but Story remains open.
+ */
+function closeCalloutsForContent(stack, depth) {
+  while (stack.length > 0 && stack.at(-1).depth > depth) {
+    stack.pop();
+  }
+}
+
+function getBlockquoteDepth(value) {
+  return (value.match(/>/g) ?? []).length;
+}
+
+/**
+ * Remove `count` blockquote prefixes.
+ *
+ * For example:
+ *
+ * stripBlockquotes("> > Hello", 2)
+ * -> "Hello"
+ *
+ * stripBlockquotes("> > > Hello", 2)
+ * -> "> Hello"
+ */
+function stripBlockquotes(line, count) {
+  let result = line;
+
+  for (let i = 0; i < count; i++) {
+    result = result.replace(/^>\s?/, "");
+  }
+
+  return result;
+}
+
+/**
+ * Render all document nodes.
+ */
+function renderCalloutDocument(document, config) {
+  return document
+    .map((node) => {
+      if (typeof node === "string") {
+        return node;
+      }
+
+      return renderCallout(node, config);
+    })
+    .join("\n");
+}
+
+/**
+ * Render a single callout.
+ */
+function renderCallout(node, config) {
+  const fenceLength = getFenceLength(node);
+  const fence = createFence(fenceLength);
+
+  const content = renderCalloutContent(node, config);
+
+  const callout = [
+    `${fence} ${createCalloutType(node, config)}`,
+    content,
+    fence,
+  ]
+    .filter((line, index, array) => {
+      return index === 0 || index === array.length - 1 || line !== "";
+    })
+    .join("\n");
+
+  if (!config?.callouts?.wrap) {
+    return callout;
+  }
+
+  return wrapCallout(callout, node);
+}
+
+/**
+ * Render the contents of a callout while preserving the original
+ * ordering of normal lines and nested callouts.
+ */
+function renderCalloutContent(node, config) {
+  return node.content
+    .map((item) => {
+      if (typeof item === "string") {
+        return item;
+      }
+
+      return renderCallout(item, config);
+    })
+    .join("\n")
+    .trim();
+}
+
+/**
+ * Determine the VitePress callout type and label.
+ */
+function createCalloutType(node, config) {
+  const foldable = node.marker === "-" || node.marker === "+";
+
+  const vpType = foldable ? "details" : calloutType(node.type, config);
+
+  const label = createCalloutLabel(node.type, node.title, foldable, config);
+
+  return `${vpType}${label}`;
+}
+
+/**
+ * Calculate the required VitePress fence length.
+ *
+ * The deepest callout uses :::
+ * Its parent uses ::::
+ * Its parent uses :::::
+ * etc.
+ */
+function getFenceLength(node) {
+  if (node.content.every((item) => typeof item === "string")) {
+    return 3;
+  }
+
+  const childFenceLengths = node.content
+    .filter((item) => typeof item !== "string")
+    .map(getFenceLength);
+
+  if (childFenceLengths.length === 0) {
+    return 3;
+  }
+
+  return Math.max(...childFenceLengths) + 1;
+}
+
+function createFence(length) {
+  return ":".repeat(length);
+}
+
+function createCalloutLabel(type, title, foldable, config) {
+  const { typeAsLabelFallback, prettifyLabels = true } = config?.callouts ?? {};
+
+  if (title) {
+    return ` ${title}`;
+  }
+
+  if (foldable || typeAsLabelFallback) {
+    return ` ${labelFromType(type, prettifyLabels)}`;
+  }
+
+  if (isKnownCalloutType(type, config)) {
+    return "";
+  }
+
+  return ` ${labelFromType(type, prettifyLabels)}`;
+}
+
+function wrapCallout(content, node) {
+  const classes = ["callout", `callout-${node.type}`];
+
+  if (node.marker === "+") {
+    classes.push("open");
+  }
+
+  return [`<div class="${classes.join(" ")}">`, "", content, "", "</div>"].join(
+    "\n",
+  );
 }
 
 function calloutTypeMapping() {
@@ -180,11 +433,13 @@ function labelFromType(type, prettify) {
 
 function calloutType(type, config) {
   const fallbackCalloutType = config?.callouts?.fallbackType ?? "info";
+
   return calloutTypeMapping()[type.toLowerCase()] ?? fallbackCalloutType;
 }
 
 function isKnownCalloutType(type, config) {
   const mapping = calloutTypeMapping();
+
   return Object.prototype.hasOwnProperty.call(mapping, type.toLowerCase());
 }
 
@@ -195,6 +450,8 @@ function prettifyType(type) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(" ");
 }
+
+/** BACKLINKS **/
 
 function appendBacklinks(markdown, note, backlinks, config) {
   const links = backlinks.get(note.route) ?? [];
