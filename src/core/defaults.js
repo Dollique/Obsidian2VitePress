@@ -1,6 +1,7 @@
 export const defaultConfig = {
   docsDir: "docs",
   outDir: "docs/generated",
+  serverDir: "", // e.g. "server/paywall", used for storing paywalled notes
   outputRouteBase: undefined,
   cleanOutDir: true,
   slug: {
@@ -30,6 +31,8 @@ export const defaultConfig = {
     typeAsLabelFallback: true,
     prettifyLabels: true,
   },
+  paywallProperty: "paywall", // a boolean property that paywalls a full article
+  paywallIndicator: "PAYWALL", // use like this `{{ PAYWALL }}`
 };
 
 export function resolveConfig(config) {

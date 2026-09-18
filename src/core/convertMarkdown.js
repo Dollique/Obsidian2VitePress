@@ -59,7 +59,7 @@ function convertWikilinks(markdown, note, index, config) {
         return convertEmbed(link, resolved, note);
       }
 
-      return `[${escapeMarkdownLinkText(resolved.label)}](${resolved.route})`;
+      return `${escapeMarkdownLinkText(resolved.label)}`;
     },
   );
 }
@@ -67,11 +67,11 @@ function convertWikilinks(markdown, note, index, config) {
 function convertEmbed(link, resolved, sourceNote) {
   if (isAssetTarget(link.target)) {
     const label = path.basename(link.target);
-    return `![${escapeMarkdownLinkText(link.alias || label)}](${resolved.route})`;
+    return `!${escapeMarkdownLinkText(link.alias || label)}`;
   }
 
   if (!resolved.exists) {
-    return `[${escapeMarkdownLinkText(resolved.label)}](${resolved.route})`;
+    return `${escapeMarkdownLinkText(resolved.label)}`;
   }
 
   return `<div class="obsidian-note-embed" data-source="${escapeHtml(sourceNote.relativePath)}"><a href="${resolved.route}">${escapeHtml(resolved.label)}</a></div>`;
@@ -182,7 +182,7 @@ function parseCalloutDocument(markdown) {
  */
 function parseCalloutLine(line) {
   const match = line.match(
-    /^(?<prefix>(?:>\s*)+)\[!(?<type>[\w-]+)\](?<marker>[+-])?\s*(?<title>.*)$/,
+    /^(?<prefix>(?:>\s*)+)\!(?<type>[\w-]+)\?\s*(?<title>.*)$/,
   );
 
   if (!match) {
@@ -466,10 +466,7 @@ function appendBacklinks(markdown, note, backlinks, config) {
     "",
     `## ${heading}`,
     "",
-    ...uniqueLinks.map(
-      (link) =>
-        `- [${escapeMarkdownLinkText(link.label)}](${link.source.route})`,
-    ),
+    ...uniqueLinks.map((link) => `- ${escapeMarkdownLinkText(link.label)}`),
   ].join("\n");
 
   return `${markdown.trimEnd()}\n${section}\n`;

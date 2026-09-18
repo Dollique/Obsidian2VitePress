@@ -90,6 +90,53 @@ const walk = async (dir, options) => {
   return files;
 };
 
+// Helper: Check if a note is paywalled via frontmatter property
+const isPaywalled = (note, config) => {
+  const paywallProperty = config.paywallProperty || "paywall";
+  return note.frontmatter?.[paywallProperty] === true;
+};
+
+// Helper (DRY): Handles splitting content for Rule 1 ({{ PAYWALL }})
+const extractSplitContent = (content, config) => {
+  const paywallIndicator = config.paywallIndicator || "PAYWALL";
+  const indicator = `{{ ${paywallIndicator} }}`;
+  const indicatorIndex = content.indexOf(indicator);
+
+  const publicContent = content.substring(0, indicatorIndex).trimEnd();
+  const paywalledContent = content
+    .substring(indicatorIndex + indicator.length)
+    .trimStart();
+
+  return { publicContent, paywalledContent };
+};
+
+// Helper: Save paywalled content to serverDir using the slug/outputRoute logic
+const savePaywalledContent = async (note, config) => {
+  const serverDir = config.serverDir || "server/paywalledNotes";
+  const serverPath = path.resolve(serverDir);
+
+  if (note.paywalledContent) {
+    // Get the exact route structure computed by slug.js (e.g. including useParentProperty, order, etc.)
+    const generatedRoute = outputRouteForNote(note, config);
+    // Remove leading slash and append .md extension
+    const relativeOutputPath = `${generatedRoute.replace(/^\/+/, "")}.md`;
+    const filePath = path.join(serverPath, relativeOutputPath);
+    const fileDir = path.dirname(filePath);
+
+    try {
+      await fs.mkdir(fileDir, { recursive: true });
+      await fs.writeFile(filePath, note.paywalledContent);
+      console.log(
+        `Moved paywalled content for "${note.basename}" to ${filePath}`,
+      );
+    } catch (error) {
+      console.error(
+        `Failed to write paywalled content for "${note.basename}": ${error.message}`,
+      );
+    }
+  }
+};
+
 // Main: Scan all vaults and create an index
 export const scanVaults = async (config) => {
   const notes = [];
@@ -121,15 +168,70 @@ export const scanVaults = async (config) => {
       // Skip if not published (if filtering is enabled)
       if (config.filterByPublished && !frontmatter.published) continue;
 
-      notes.push({
+      const noteObj = {
         vault,
         root,
         absolutePath: file,
         relativePath,
         basename,
-        content,
         frontmatter,
-      });
+      };
+
+      const paywalled = isPaywalled(noteObj, config);
+      const paywallIndicator = config.paywallIndicator || "PAYWALL";
+      const hasPaywallIndicator = content.includes(`{{ ${paywallIndicator} }}`);
+
+      if (hasPaywallIndicator) {
+        // Rule 1: Split content via {{ PAYWALL }} indicator
+        console.log(`Note "${basename}" has {{ PAYWALL }}. Splitting content.`);
+        const { publicContent, paywalledContent } = extractSplitContent(
+          content,
+          config,
+        );
+
+        noteObj.paywalledContent = paywalledContent;
+        await savePaywalledContent(noteObj, config);
+
+        notes.push({
+          ...noteObj,
+          content: publicContent,
+          paywalled: false,
+          paywalledContent: null,
+        });
+      } else if (paywalled) {
+        // Rule 2: Paywalled via property. Full content to serverDir, frontmatter-only stub to outDir.
+        console.log(
+          `Note "${basename}" is paywalled via property. Moving full content to serverDir and writing frontmatter stub to outDir.`,
+        );
+
+        // 1. Save the *entire* original content to the server folder using full noteObj
+        noteObj.paywalledContent = content;
+        await savePaywalledContent(noteObj, config);
+
+        // 2. Extract only the frontmatter for the public outDir stub
+        const firstClosingFrontmatter = content.indexOf("---", 3);
+        const frontmatterEndIndex =
+          firstClosingFrontmatter !== -1
+            ? firstClosingFrontmatter + 3
+            : content.length;
+        const frontmatterOnlyStub = content.substring(0, frontmatterEndIndex);
+
+        // 3. Push stub to notes so VitePress generates the route for it
+        notes.push({
+          ...noteObj,
+          content: frontmatterOnlyStub,
+          paywalled: true,
+          paywalledContent: null,
+        });
+      } else {
+        // Non-paywalled note
+        notes.push({
+          ...noteObj,
+          content,
+          paywalled: false,
+          paywalledContent: null,
+        });
+      }
     }
   }
 
