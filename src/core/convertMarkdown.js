@@ -182,7 +182,7 @@ function parseCalloutDocument(markdown) {
  */
 function parseCalloutLine(line) {
   const match = line.match(
-    /^(?<prefix>(?:>\s*)+)\!(?<type>[\w-]+)\?\s*(?<title>.*)$/,
+    /^(?<prefix>(?:>\s*)+)\s*\[\s*\!(?<type>[\w-]+)\s*\](?<marker>[+\-]?)?\s*(?<title>.*)$/,
   );
 
   if (!match) {

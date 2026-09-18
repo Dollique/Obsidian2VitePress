@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { outputRouteForNote, routeForNote } from "./slug.js";
 import { parseFrontmatter, injectTitleToMarkdown } from "./frontmatter.js";
+import { convertMarkdown, collectBacklinks } from "./convertMarkdown.js";
 
 // Helper: Normalize path separators
 const slash = (value) => value.replace(/\\/g, "/");
@@ -111,23 +112,27 @@ const extractSplitContent = (content, config) => {
 };
 
 // Helper: Save paywalled content to serverDir using the slug/outputRoute logic
-const savePaywalledContent = async (note, config) => {
+const savePaywalledContent = async (note, config, context) => {
   const serverDir = config.serverDir || "server/paywalledNotes";
   const serverPath = path.resolve(serverDir);
 
   if (note.paywalledContent) {
-    // Get the exact route structure computed by slug.js (e.g. including useParentProperty, order, etc.)
+    // Process markdown rules (callouts, wikilinks, backlinks) for server content too!
+    const convertedPaywalledContent = convertMarkdown(
+      { ...note, content: note.paywalledContent },
+      context,
+    );
+
     const generatedRoute = outputRouteForNote(note, config);
-    // Remove leading slash and append .md extension
     const relativeOutputPath = `${generatedRoute.replace(/^\/+/, "")}.md`;
     const filePath = path.join(serverPath, relativeOutputPath);
     const fileDir = path.dirname(filePath);
 
     try {
       await fs.mkdir(fileDir, { recursive: true });
-      await fs.writeFile(filePath, note.paywalledContent);
+      await fs.writeFile(filePath, convertedPaywalledContent, "utf8");
       console.log(
-        `Moved paywalled content for "${note.basename}" to ${filePath}`,
+        `Moved converted paywalled content for "${note.basename}" to ${filePath}`,
       );
     } catch (error) {
       console.error(
@@ -140,6 +145,7 @@ const savePaywalledContent = async (note, config) => {
 // Main: Scan all vaults and create an index
 export const scanVaults = async (config) => {
   const notes = [];
+  const pendingPaywallSaves = []; // Queue paywalled items to save after indexing
   const outDir = path.resolve(config.outDir);
   const generatedRelativeRoot = normalizeGeneratedRelativeRoot(
     config.outputRouteBase,
@@ -165,7 +171,6 @@ export const scanVaults = async (config) => {
       const content = injectTitleToMarkdown(rawContent, basename);
       const frontmatter = parseFrontmatter(content);
 
-      // Skip if not published (if filtering is enabled)
       if (config.filterByPublished && !frontmatter.published) continue;
 
       const noteObj = {
@@ -182,17 +187,15 @@ export const scanVaults = async (config) => {
       const hasPaywallIndicator = content.includes(`{{ ${paywallIndicator} }}`);
 
       if (hasPaywallIndicator) {
-        // Rule 1: Split content via {{ PAYWALL }} indicator (Has teaser preview, so not fully paywalled)
-        console.log(`Note "${basename}" has {{ PAYWALL }}. Splitting content.`);
+        // Rule 1: Split content via {{ PAYWALL }} indicator
         const { publicContent, paywalledContent } = extractSplitContent(
           content,
           config,
         );
 
         noteObj.paywalledContent = paywalledContent;
-        await savePaywalledContent(noteObj, config);
+        pendingPaywallSaves.push(noteObj); // Queue for save after index
 
-        // Inject isFullyPaywalled: false into frontmatter of public preview content
         let modifiedPublicContent = publicContent;
         if (modifiedPublicContent.startsWith("---")) {
           modifiedPublicContent = modifiedPublicContent.replace(
@@ -211,11 +214,7 @@ export const scanVaults = async (config) => {
           paywalledContent: null,
         });
       } else if (paywalled) {
-        // Rule 2: Paywalled via property. Body content to serverDir (without frontmatter), frontmatter-only stub to outDir.
-        console.log(
-          `Note "${basename}" is paywalled via property. Moving body content to serverDir and writing frontmatter stub to outDir.`,
-        );
-
+        // Rule 2: Paywalled via property
         const firstClosingFrontmatter = content.indexOf("---", 3);
         let bodyContent = content;
         let frontmatterOnlyStub = content;
@@ -230,11 +229,9 @@ export const scanVaults = async (config) => {
             .trimStart();
         }
 
-        // 1. Save only the body content to the server folder
         noteObj.paywalledContent = bodyContent;
-        await savePaywalledContent(noteObj, config);
+        pendingPaywallSaves.push(noteObj); // Queue for save after index
 
-        // 2. Inject isFullyPaywalled: true into frontmatter of the stub
         if (frontmatterOnlyStub.startsWith("---")) {
           frontmatterOnlyStub = frontmatterOnlyStub.replace(
             "---",
@@ -245,7 +242,6 @@ export const scanVaults = async (config) => {
             `---\nisFullyPaywalled: true\n---\n` + frontmatterOnlyStub;
         }
 
-        // 3. Push stub to notes so VitePress generates the route for it
         notes.push({
           ...noteObj,
           content: frontmatterOnlyStub,
@@ -253,7 +249,6 @@ export const scanVaults = async (config) => {
           paywalledContent: null,
         });
       } else {
-        // Non-paywalled note
         notes.push({
           ...noteObj,
           content,
@@ -264,9 +259,21 @@ export const scanVaults = async (config) => {
     }
   }
 
+  // 1. Create index first so routes are computed
+  const index = createNoteIndex(notes, config);
+
+  // 2. Collect backlinks for full context
+  const backlinks = collectBacklinks(notes, index, config);
+  const context = { index, config, backlinks };
+
+  // 3. Now save all paywalled content with full conversion rules applied!
+  for (const note of pendingPaywallSaves) {
+    await savePaywalledContent(note, config, context);
+  }
+
   return {
     notes,
-    index: createNoteIndex(notes, config),
+    index,
   };
 };
 
