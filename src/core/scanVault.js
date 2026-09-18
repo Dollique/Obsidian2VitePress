@@ -182,7 +182,7 @@ export const scanVaults = async (config) => {
       const hasPaywallIndicator = content.includes(`{{ ${paywallIndicator} }}`);
 
       if (hasPaywallIndicator) {
-        // Rule 1: Split content via {{ PAYWALL }} indicator
+        // Rule 1: Split content via {{ PAYWALL }} indicator (Has teaser preview, so not fully paywalled)
         console.log(`Note "${basename}" has {{ PAYWALL }}. Splitting content.`);
         const { publicContent, paywalledContent } = extractSplitContent(
           content,
@@ -192,29 +192,58 @@ export const scanVaults = async (config) => {
         noteObj.paywalledContent = paywalledContent;
         await savePaywalledContent(noteObj, config);
 
+        // Inject isFullyPaywalled: false into frontmatter of public preview content
+        let modifiedPublicContent = publicContent;
+        if (modifiedPublicContent.startsWith("---")) {
+          modifiedPublicContent = modifiedPublicContent.replace(
+            "---",
+            "---\nisFullyPaywalled: false",
+          );
+        } else {
+          modifiedPublicContent =
+            `---\nisFullyPaywalled: false\n---\n` + modifiedPublicContent;
+        }
+
         notes.push({
           ...noteObj,
-          content: publicContent,
+          content: modifiedPublicContent,
           paywalled: false,
           paywalledContent: null,
         });
       } else if (paywalled) {
-        // Rule 2: Paywalled via property. Full content to serverDir, frontmatter-only stub to outDir.
+        // Rule 2: Paywalled via property. Body content to serverDir (without frontmatter), frontmatter-only stub to outDir.
         console.log(
-          `Note "${basename}" is paywalled via property. Moving full content to serverDir and writing frontmatter stub to outDir.`,
+          `Note "${basename}" is paywalled via property. Moving body content to serverDir and writing frontmatter stub to outDir.`,
         );
 
-        // 1. Save the *entire* original content to the server folder using full noteObj
-        noteObj.paywalledContent = content;
+        const firstClosingFrontmatter = content.indexOf("---", 3);
+        let bodyContent = content;
+        let frontmatterOnlyStub = content;
+
+        if (content.startsWith("---") && firstClosingFrontmatter !== -1) {
+          frontmatterOnlyStub = content.substring(
+            0,
+            firstClosingFrontmatter + 3,
+          );
+          bodyContent = content
+            .substring(firstClosingFrontmatter + 3)
+            .trimStart();
+        }
+
+        // 1. Save only the body content to the server folder
+        noteObj.paywalledContent = bodyContent;
         await savePaywalledContent(noteObj, config);
 
-        // 2. Extract only the frontmatter for the public outDir stub
-        const firstClosingFrontmatter = content.indexOf("---", 3);
-        const frontmatterEndIndex =
-          firstClosingFrontmatter !== -1
-            ? firstClosingFrontmatter + 3
-            : content.length;
-        const frontmatterOnlyStub = content.substring(0, frontmatterEndIndex);
+        // 2. Inject isFullyPaywalled: true into frontmatter of the stub
+        if (frontmatterOnlyStub.startsWith("---")) {
+          frontmatterOnlyStub = frontmatterOnlyStub.replace(
+            "---",
+            "---\nisFullyPaywalled: true",
+          );
+        } else {
+          frontmatterOnlyStub =
+            `---\nisFullyPaywalled: true\n---\n` + frontmatterOnlyStub;
+        }
 
         // 3. Push stub to notes so VitePress generates the route for it
         notes.push({

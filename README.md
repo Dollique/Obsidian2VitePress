@@ -13,15 +13,16 @@ A local VitePress plugin that converts and imports Obsidian vault notes into Vit
 - **Wikilink Resolution:** Parse standard `[[Wikilinks]]` and handle links to uncreated notes seamlessly.
 - **Backlink Generation:** Append backlink lists automatically to referenced target pages.
 - **Callout Support:** Convert Obsidian `> [!NOTE]` callout syntax into standard VitePress custom containers.
-- **Paywall Management (`serverDir`, `paywallProperty`, `paywallIndicator`):** Securely restrict full articles or split content dynamically by moving restricted body text to a server directory while keeping frontmatter route stubs public.
+- **Paywall Management (`serverDir`, `paywallProperty`, `paywallIndicator`, `hidePaywalledContentInNavigation`):** Securely restrict full article bodies (stripping frontmatter) or split content dynamically, stamping `isFullyPaywalled` frontmatter metadata on public stubs to guide frontend navigation visibility.
 
 ## Configuration Options
 
-| Option                 | Type     | Default                   | Description                                                                                                                                                                                                 |
-| :--------------------- | :------- | :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`serverDir`**        | `string` | `"server/paywalledNotes"` | Target directory where full paywalled note bodies or split paywalled sections are saved for your backend server to fetch securely.                                                                          |
-| **`paywallProperty`**  | `string` | `"paywall"`               | The frontmatter boolean property name used to completely paywall an article (e.g., `paywall: true`). Generates a frontmatter-only stub for VitePress routing while storing the full content in `serverDir`. |
-| **`paywallIndicator`** | `string` | `"PAYWALL"`               | The inline marker string (used as `{{ PAYWALL }}`) to split a single note into public content (above the marker) and paywalled content (below the marker).                                                  |
+| Option                                 | Type     | Default                   | Description                                                                                                                                                                                                                            |
+| :------------------------------------- | :------- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`serverDir`**                        | `string` | `"server/paywalledNotes"` | Target directory where full paywalled note body content or split paywalled sections are saved for your backend server to fetch securely.                                                                                               |
+| **`paywallProperty`**                  | `string` | `"paywall"`               | The frontmatter boolean property name used to completely paywall an article (e.g., `paywall: true`). Generates a frontmatter-only stub for VitePress routing while storing only the body content (without frontmatter) in `serverDir`. |
+| **`paywallIndicator`**                 | `string` | `"PAYWALL"`               | The inline marker string (used as `{{ PAYWALL }}`) to split a single note into public content (above the marker) and paywalled content (below the marker).                                                                             |
+| **`hidePaywalledContentInNavigation`** | `string` | `"mixed"`                 | Controls sidebar visibility mode for paywalled items: `"all"` (hide all paywalled items), `"mixed"` (keep Rule 1 teasers visible, hide Rule 2 stubs), or `"none"` (keep everything visible).                                           |
 
 ## Usage
 
@@ -51,6 +52,7 @@ export default defineConfig({
         serverDir: "server/paywalledNotes", // Directory for backend-served paywalled content
         paywallProperty: "paywall", // Frontmatter key for full article paywalls
         paywallIndicator: "PAYWALL", // Inline tag for partial content paywalls (e.g. {{ PAYWALL }})
+        hidePaywalledContentInNavigation: "mixed", // Navigation visibility mode ("all" | "mixed" | "none")
         callouts: {
           wrap: true, // wrap all callouts in a `div` wrapper element
           fallbackType: "info", // if a custom callback is used fall back to this type
