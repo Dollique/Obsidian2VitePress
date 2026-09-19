@@ -15,13 +15,14 @@ A local VitePress plugin that converts and imports Obsidian vault notes into Vit
 - **Callout Support:** Convert Obsidian `> [!NOTE]` callout syntax into standard VitePress custom containers.
 - **Paywall Management (`serverDir`, `paywallProperty`, `paywallIndicator`, `hidePaywalledContentInNavigation`):** Securely restrict full article bodies (stripping frontmatter) or split content dynamically, stamping `isFullyPaywalled` frontmatter metadata on public stubs to guide frontend navigation visibility.
 
-## Configuration Options
+## Paywall Configuration Options
 
 | Option                                 | Type     | Default                   | Description                                                                                                                                                                                                                            |
 | :------------------------------------- | :------- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`serverDir`**                        | `string` | `"server/paywalledNotes"` | Target directory where full paywalled note body content or split paywalled sections are saved for your backend server to fetch securely.                                                                                               |
 | **`paywallProperty`**                  | `string` | `"paywall"`               | The frontmatter boolean property name used to completely paywall an article (e.g., `paywall: true`). Generates a frontmatter-only stub for VitePress routing while storing only the body content (without frontmatter) in `serverDir`. |
 | **`paywallIndicator`**                 | `string` | `"PAYWALL"`               | The inline marker string (used as `{{ PAYWALL }}`) to split a single note into public content (above the marker) and paywalled content (below the marker).                                                                             |
+| **`paywallInfoComponent`**             | `string` | `undefined`               | Optional Vue component name (e.g. `"PaywallInfo"`) injected automatically at the split boundary of partial paywall articles. If empty or omitted, no component is appended.                                                            |
 | **`hidePaywalledContentInNavigation`** | `string` | `"mixed"`                 | Controls sidebar visibility mode for paywalled items: `"all"` (hide all paywalled items), `"mixed"` (keep Rule 1 teasers visible, hide Rule 2 stubs), or `"none"` (keep everything visible).                                           |
 
 ## Usage

@@ -135,7 +135,18 @@ export const scanVaults = async (config) => {
         noteObj.paywalledContent = paywalledContent;
         pendingPaywallSaves.push(noteObj); // Queue for save after index
 
+        // Append the paywall info component at the split point only if specified and non-empty
+        const componentName = config.paywallInfoComponent;
         let modifiedPublicContent = publicContent;
+
+        if (
+          componentName &&
+          typeof componentName === "string" &&
+          componentName.trim().length > 0
+        ) {
+          modifiedPublicContent = `${publicContent}\n\n<${componentName.trim()} />`;
+        }
+
         if (modifiedPublicContent.startsWith("---")) {
           modifiedPublicContent = modifiedPublicContent.replace(
             "---",

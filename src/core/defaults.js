@@ -33,6 +33,7 @@ export const defaultConfig = {
   },
   paywallProperty: "paywall", // a boolean property that paywalls a full article
   paywallIndicator: "PAYWALL", // use like this `{{ PAYWALL }}`
+  paywallInfoComponent: "PaywallInfo", // renders as <PaywallInfo />
   hidePaywalledContentInNavigation: "mixed", // Options: "all" | "mixed" | "none"
 };
 
