@@ -9,6 +9,8 @@ import {
   isIncluded,
   normalizeGeneratedRelativeRoot,
   walk,
+  wordCreator,
+  randomizeWordsInText,
 } from "../utils.js";
 
 // Helper: Normalize a target for indexing
@@ -46,13 +48,13 @@ const extractSplitContent = (content, config) => {
   return { publicContent, paywalledContent };
 };
 
-// Helper: Save paywalled content to serverDir using the slug/outputRoute logic
+// Helper: Save paywalled content to serverDir using the slug/outputRoute logic (ALWAYS keeps original text)
 const savePaywalledContent = async (note, config, context) => {
   const serverDir = config.serverDir || "server/paywalledNotes";
   const serverPath = path.resolve(serverDir);
 
   if (note.paywalledContent) {
-    // Process markdown rules (callouts, wikilinks, backlinks) for server content too!
+    // Server directory always receives the ORIGINAL unedited content
     const convertedPaywalledContent = convertMarkdown(
       { ...note, content: note.paywalledContent },
       context,
@@ -67,7 +69,7 @@ const savePaywalledContent = async (note, config, context) => {
       await fs.mkdir(fileDir, { recursive: true });
       await fs.writeFile(filePath, convertedPaywalledContent, "utf8");
       console.log(
-        `Moved converted paywalled content for "${note.basename}" to ${filePath}`,
+        `Saved original paywalled content for "${note.basename}" to serverDir: ${filePath}`,
       );
     } catch (error) {
       console.error(
@@ -132,19 +134,26 @@ export const scanVaults = async (config) => {
           config,
         );
 
+        // 1. Store original content for serverDir
         noteObj.paywalledContent = paywalledContent;
-        pendingPaywallSaves.push(noteObj); // Queue for save after index
+        pendingPaywallSaves.push(noteObj);
 
-        // Append the paywall info component at the split point only if specified and non-empty
-        const componentName = config.paywallInfoComponent;
         let modifiedPublicContent = publicContent;
 
+        // 2. Append the paywall info component FIRST (so it sits before the mystical teaser)
+        const componentName = config.paywallInfoComponent;
         if (
           componentName &&
           typeof componentName === "string" &&
           componentName.trim().length > 0
         ) {
-          modifiedPublicContent = `${publicContent}\n\n<${componentName.trim()} />`;
+          modifiedPublicContent = `${modifiedPublicContent}\n\n<${componentName.trim()} />`;
+        }
+
+        // 3. Append the mystical-paywall wrapper AFTER the component
+        if (config.mysticalPaywall) {
+          const mysticalPaywalled = randomizeWordsInText(paywalledContent);
+          modifiedPublicContent = `${modifiedPublicContent}\n\n<div class="mystical-paywall">\n\n${mysticalPaywalled}\n\n</div>`;
         }
 
         if (modifiedPublicContent.startsWith("---")) {
@@ -179,8 +188,9 @@ export const scanVaults = async (config) => {
             .trimStart();
         }
 
+        // Store original body content for serverDir
         noteObj.paywalledContent = bodyContent;
-        pendingPaywallSaves.push(noteObj); // Queue for save after index
+        pendingPaywallSaves.push(noteObj);
 
         if (frontmatterOnlyStub.startsWith("---")) {
           frontmatterOnlyStub = frontmatterOnlyStub.replace(
@@ -216,7 +226,7 @@ export const scanVaults = async (config) => {
   const backlinks = collectBacklinks(notes, index, config);
   const context = { index, config, backlinks };
 
-  // 3. Now save all paywalled content with full conversion rules applied!
+  // 3. Save original paywalled content to serverDir
   for (const note of pendingPaywallSaves) {
     await savePaywalledContent(note, config, context);
   }
@@ -250,7 +260,6 @@ const createNoteIndex = (notes, config) => {
     addTarget(byTarget, note.relativePath.replace(/\.md$/i, ""), note);
     addTarget(byTarget, note.relativePath, note);
 
-    // If home rewrite is active and note is marked as home layout, also index under 'index'
     if (
       config.useHomeRewrite &&
       String(note.frontmatter?.layout).trim().toLowerCase() === "home"
@@ -258,7 +267,6 @@ const createNoteIndex = (notes, config) => {
       addTarget(byTarget, "index", note);
     }
 
-    // If order property is active, also index by ordered target name
     if (
       config.useOrderProperty &&
       note.frontmatter?.order !== undefined &&

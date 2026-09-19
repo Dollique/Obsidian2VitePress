@@ -35,6 +35,7 @@ export const defaultConfig = {
   paywallIndicator: "PAYWALL", // use like this `{{ PAYWALL }}`
   paywallInfoComponent: "PaywallInfo", // renders as <PaywallInfo />
   hidePaywalledContentInNavigation: "mixed", // Options: "all" | "mixed" | "none"
+  mysticalPaywall: false, // replaces all content with made up words
 };
 
 export function resolveConfig(config) {

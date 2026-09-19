@@ -80,3 +80,36 @@ export const walk = async (dir, options) => {
 
   return files;
 };
+
+// --- Mystical Paywall Utilities ---
+
+// Helper: Generates a mystical, pronounceable word (3-10 chars long)
+export const wordCreator = () => {
+  const consonants = "bcdfghjklmnpqrstvwxyz";
+  const vowels = "aeiou";
+
+  // Random length between 3 and 10 characters
+  const length = Math.floor(Math.random() * 8) + 3;
+  let word = "";
+
+  // Randomly start with a consonant or a vowel
+  let isConsonant = Math.random() < 0.7;
+
+  for (let i = 0; i < length; i++) {
+    if (isConsonant) {
+      word += consonants.charAt(Math.floor(Math.random() * consonants.length));
+    } else {
+      word += vowels.charAt(Math.floor(Math.random() * vowels.length));
+    }
+    // Alternate to make words sound realistic/pronounceable
+    isConsonant = !isConsonant;
+  }
+
+  return word;
+};
+
+// Helper: Replaces actual words with mystical words while preserving markdown, links, and punctuation
+export const randomizeWordsInText = (text) => {
+  // Matches any sequence of letters 3 characters or longer, replacing each with a generated mystical word
+  return text.replace(/([a-zA-ZÀ-ÿ]{3,})/g, () => wordCreator());
+};

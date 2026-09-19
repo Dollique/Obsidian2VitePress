@@ -14,16 +14,18 @@ A local VitePress plugin that converts and imports Obsidian vault notes into Vit
 - **Backlink Generation:** Append backlink lists automatically to referenced target pages.
 - **Callout Support:** Convert Obsidian `> [!NOTE]` callout syntax into standard VitePress custom containers.
 - **Paywall Management (`serverDir`, `paywallProperty`, `paywallIndicator`, `hidePaywalledContentInNavigation`):** Securely restrict full article bodies (stripping frontmatter) or split content dynamically, stamping `isFullyPaywalled` frontmatter metadata on public stubs to guide frontend navigation visibility.
+- **Mystical Paywall Teaser (`mysticalPaywall`):** Wraps locked paywalled content stubs in a `.mystical-paywall` container with randomized text placeholders for unauthenticated visitors to preview before unlocking.
 
 ## Paywall Configuration Options
 
-| Option                                 | Type     | Default                   | Description                                                                                                                                                                                                                            |
-| :------------------------------------- | :------- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`serverDir`**                        | `string` | `"server/paywalledNotes"` | Target directory where full paywalled note body content or split paywalled sections are saved for your backend server to fetch securely.                                                                                               |
-| **`paywallProperty`**                  | `string` | `"paywall"`               | The frontmatter boolean property name used to completely paywall an article (e.g., `paywall: true`). Generates a frontmatter-only stub for VitePress routing while storing only the body content (without frontmatter) in `serverDir`. |
-| **`paywallIndicator`**                 | `string` | `"PAYWALL"`               | The inline marker string (used as `{{ PAYWALL }}`) to split a single note into public content (above the marker) and paywalled content (below the marker).                                                                             |
-| **`paywallInfoComponent`**             | `string` | `undefined`               | Optional Vue component name (e.g. `"PaywallInfo"`) injected automatically at the split boundary of partial paywall articles. If empty or omitted, no component is appended.                                                            |
-| **`hidePaywalledContentInNavigation`** | `string` | `"mixed"`                 | Controls sidebar visibility mode for paywalled items: `"all"` (hide all paywalled items), `"mixed"` (keep Rule 1 teasers visible, hide Rule 2 stubs), or `"none"` (keep everything visible).                                           |
+| Option                                 | Type      | Default                   | Description                                                                                                                                                                                                                            |
+| :------------------------------------- | :-------- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`serverDir`**                        | `string`  | `"server/paywalledNotes"` | Target directory where full paywalled note body content or split paywalled sections are saved for your backend server to fetch securely.                                                                                               |
+| **`paywallProperty`**                  | `string`  | `"paywall"`               | The frontmatter boolean property name used to completely paywall an article (e.g., `paywall: true`). Generates a frontmatter-only stub for VitePress routing while storing only the body content (without frontmatter) in `serverDir`. |
+| **`paywallIndicator`**                 | `string`  | `"PAYWALL"`               | The inline marker string (used as `{{ PAYWALL }}`) to split a single note into public content (above the marker) and paywalled content (below the marker).                                                                             |
+| **`paywallInfoComponent`**             | `string`  | `undefined`               | Optional Vue component name (e.g. `"PaywallInfo"`) injected automatically at the split boundary of partial paywall articles. If empty or omitted, no component is appended.                                                            |
+| **`hidePaywalledContentInNavigation`** | `string`  | `"mixed"`                 | Controls sidebar visibility mode for paywalled items: `"all"` (hide all paywalled items), `"mixed"` (keep Rule 1 teasers visible, hide Rule 2 stubs), or `"none"` (keep everything visible).                                           |
+| **`mysticalPaywall`**                  | `boolean` | `false`                   | Enables wrapping of locked paywalled stubs in a `.mystical-paywall` frontend preview container.                                                                                                                                        |
 
 ## Usage
 
@@ -54,6 +56,7 @@ export default defineConfig({
         paywallProperty: "paywall", // Frontmatter key for full article paywalls
         paywallIndicator: "PAYWALL", // Inline tag for partial content paywalls (e.g. {{ PAYWALL }})
         hidePaywalledContentInNavigation: "mixed", // Navigation visibility mode ("all" | "mixed" | "none")
+        mysticalPaywall: true, // Wrap locked content in a mystical preview container
         callouts: {
           wrap: true, // wrap all callouts in a `div` wrapper element
           fallbackType: "info", // if a custom callback is used fall back to this type
