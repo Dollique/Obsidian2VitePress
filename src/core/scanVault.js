@@ -3,38 +3,13 @@ import path from "node:path";
 import { outputRouteForNote, routeForNote } from "./slug.js";
 import { parseFrontmatter, injectTitleToMarkdown } from "./frontmatter.js";
 import { convertMarkdown, collectBacklinks } from "./convertMarkdown.js";
-
-// Helper: Normalize path separators
-const slash = (value) => value.replace(/\\/g, "/");
-
-// Helper: Check if a relative path is included in the vault
-const isIncluded = (relativePath, vault) => {
-  if (
-    vault.include?.length &&
-    !vault.include.some((prefix) => relativePath.startsWith(prefix))
-  ) {
-    return false;
-  }
-  if (vault.exclude?.some((prefix) => relativePath.startsWith(prefix))) {
-    return false;
-  }
-  return true;
-};
-
-// Helper: Normalize the generated relative root
-const normalizeGeneratedRelativeRoot = (outputRouteBase) => {
-  return String(outputRouteBase ?? "").replace(/^\/+|\/+$/g, "");
-};
-
-// Helper: Check if a path is inside the generated output directory
-const isGeneratedOutputPath = (candidate, options) => {
-  if (!options.generatedRelativeRoot) return false;
-  const relative = slash(path.relative(options.root, candidate));
-  return (
-    relative === options.generatedRelativeRoot ||
-    relative.startsWith(`${options.generatedRelativeRoot}/`)
-  );
-};
+import {
+  cleanDir,
+  slash,
+  isIncluded,
+  normalizeGeneratedRelativeRoot,
+  walk,
+} from "../utils.js";
 
 // Helper: Normalize a target for indexing
 export const normalizeTarget = (target) => {
@@ -49,46 +24,6 @@ const addTarget = (map, target, note) => {
     matches.push(note);
     map.set(key, matches);
   }
-};
-
-// Helper: Recursively walk a directory
-const walk = async (dir, options) => {
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  const files = [];
-
-  for (const entry of entries) {
-    // Skip hidden/system directories, git, and Obsidian trash
-    if (
-      entry.name === ".obsidian" ||
-      entry.name === ".git" ||
-      entry.name === ".trash"
-    )
-      continue;
-
-    const fullPath = path.join(dir, entry.name);
-
-    // Also catch any nested .trash directories or paths containing .trash/
-    if (
-      slash(fullPath).includes("/.trash/") ||
-      slash(fullPath).endsWith("/.trash")
-    )
-      continue;
-
-    if (
-      fullPath === options.outDir ||
-      fullPath.startsWith(`${options.outDir}/`)
-    )
-      continue;
-    if (isGeneratedOutputPath(fullPath, options)) continue;
-
-    if (entry.isDirectory()) {
-      files.push(...(await walk(fullPath, options)));
-    } else if (entry.isFile()) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
 };
 
 // Helper: Check if a note is paywalled via frontmatter property
@@ -147,9 +82,13 @@ export const scanVaults = async (config) => {
   const notes = [];
   const pendingPaywallSaves = []; // Queue paywalled items to save after indexing
   const outDir = path.resolve(config.outDir);
+  const serverDir = config.serverDir || "server/paywalledNotes";
   const generatedRelativeRoot = normalizeGeneratedRelativeRoot(
     config.outputRouteBase,
   );
+
+  // Clear serverDir before processing to prevent stale files
+  await cleanDir(serverDir);
 
   for (const vault of config.vaults) {
     const root = path.resolve(vault.root);
