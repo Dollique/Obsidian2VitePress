@@ -1,12 +1,44 @@
 import path from "node:path";
 import { findWikilinks, resolveWikiLink } from "./links.js";
+import { slash } from "../utils.js";
 
 export function convertMarkdown(note, context) {
-  const { index, config, backlinks } = context;
+  const { index, config, backlinks, referencedAssets, assetMap } = context;
   let markdown = note.content;
 
+  console.log(
+    `[DEBUG convertMarkdown] Processing note: "${note.basename}" (route: ${note.route})`,
+  );
+
+  // 1. Convert wikilinks globally across the note (and track assets if referencedAssets is provided)
+  markdown = convertWikilinks(
+    markdown,
+    note,
+    index,
+    config,
+    referencedAssets,
+    assetMap,
+  );
+
+  // 2. Also check for standard Markdown images ![alt](path) if tracking assets
+  if (referencedAssets) {
+    const mdImageRegex = /!\[(.*?)\]\((?!https?:\/\/)([^)]+)\)/g;
+
+    // Replace spaces in standard markdown image paths so VitePress can render them
+    markdown = markdown.replace(mdImageRegex, (match, alt, targetPath) => {
+      console.log(
+        `[DEBUG convertMarkdown] Found standard MD image path: "${targetPath}"`,
+      );
+      referencedAssets.add(targetPath.toLowerCase());
+      referencedAssets.add(path.basename(targetPath).toLowerCase());
+
+      const encodedPath = encodeURI(targetPath);
+      return `![${alt}](${encodedPath})`;
+    });
+  }
+
+  // 3. Convert callouts (they now contain the correctly converted links)
   markdown = convertCallouts(markdown, config);
-  markdown = convertWikilinks(markdown, note, index, config);
 
   if (config.backlinks?.enabled) {
     markdown = appendBacklinks(markdown, note, backlinks, config);
@@ -42,7 +74,14 @@ export function collectBacklinks(notes, index, config) {
   return backlinks;
 }
 
-function convertWikilinks(markdown, note, index, config) {
+function convertWikilinks(
+  markdown,
+  note,
+  index,
+  config,
+  referencedAssets,
+  assetMap,
+) {
   return markdown.replace(
     /(!)?\[\[([^\]\n]+)\]\]/g,
     (raw, embedMarker, rawTarget) => {
@@ -51,23 +90,81 @@ function convertWikilinks(markdown, note, index, config) {
         isEmbed: Boolean(embedMarker),
         ...parseInlineTarget(rawTarget),
       };
+
+      console.log(
+        `[DEBUG convertWikilinks] Found wikilink: "${raw}" (target: "${link.target}", isEmbed: ${link.isEmbed})`,
+      );
+
       const resolved = resolveWikiLink(link, note, index, config);
 
       if (resolved.preserve) return raw;
 
       if (link.isEmbed) {
-        return convertEmbed(link, resolved, note);
+        if (isAssetTarget(link.target) && referencedAssets) {
+          referencedAssets.add(path.basename(link.target).toLowerCase());
+        }
+        return convertEmbed(
+          link,
+          resolved,
+          note,
+          config,
+          referencedAssets,
+          assetMap,
+        );
       }
 
-      return `${escapeMarkdownLinkText(resolved.label)}`;
+      if (!resolved.exists) {
+        return `${escapeMarkdownLinkText(resolved.label)}`;
+      }
+
+      // Return proper Markdown link with the resolved route and label
+      return `[${escapeMarkdownLinkText(resolved.label)}](${resolved.route})`;
     },
   );
 }
 
-function convertEmbed(link, resolved, sourceNote) {
+function convertEmbed(
+  link,
+  resolved,
+  sourceNote,
+  config,
+  referencedAssets,
+  assetMap,
+) {
   if (isAssetTarget(link.target)) {
-    const label = path.basename(link.target);
-    return `!${escapeMarkdownLinkText(link.alias || label)}`;
+    const assetOutDirName = config?.assets?.outDir || "assets";
+    const filename = path.basename(link.target).toLowerCase();
+
+    let subPath = filename;
+    if (config.assets?.preserveFilenames && assetMap) {
+      const match = assetMap.get(filename);
+      if (match) subPath = match.relativePath;
+      else console.warn(`[Warning] Asset "${filename}" not found in vault map`);
+    }
+
+    const assetPath = encodeURI(`/${assetOutDirName}/${slash(subPath)}`);
+    const alt = link.alias || path.basename(link.target);
+
+    // Check if the alias contains dimensions like "308x308" or "308"
+    let width = "";
+    let height = "";
+    let cleanAlt = alt;
+
+    const dimensionMatch = alt.match(/^(\d+)(?:x(\d+))?$/);
+    if (dimensionMatch) {
+      width = dimensionMatch[1];
+      height = dimensionMatch[2] || ""; // if only width is given (e.g. |308)
+      cleanAlt = path.basename(link.target); // fallback alt if only dimensions were passed
+    }
+
+    // If dimensions exist, output an HTML <img> tag to preserve width/height cleanly
+    if (width) {
+      const heightAttr = height ? ` data-height="${height}"` : "";
+      return `<img src="${assetPath}" alt="${escapeHtml(cleanAlt)}" data-width="${width}"${heightAttr}>`;
+    }
+
+    // Fallback to standard markdown image format if no dimensions specified
+    return `![${escapeMarkdownLinkText(alt)}](${assetPath})`;
   }
 
   if (!resolved.exists) {
@@ -466,7 +563,11 @@ function appendBacklinks(markdown, note, backlinks, config) {
     "",
     `## ${heading}`,
     "",
-    ...uniqueLinks.map((link) => `- ${escapeMarkdownLinkText(link.label)}`),
+    // Format as a proper Markdown link using the source note's route
+    ...uniqueLinks.map(
+      (link) =>
+        `- [${escapeMarkdownLinkText(link.label)}](${link.source.route})`,
+    ),
   ].join("\n");
 
   return `${markdown.trimEnd()}\n${section}\n`;

@@ -5,7 +5,12 @@ import path from "node:path";
 export const cleanDir = async (dirPath) => {
   if (!dirPath) return;
   const resolvedPath = path.resolve(dirPath);
-  await fs.rm(resolvedPath, { recursive: true, force: true });
+  await fs.rm(resolvedPath, {
+    recursive: true,
+    force: true,
+    maxRetries: 5, // Node retries when it hits ENOTEMPTY/EBUSY/EPERM
+    retryDelay: 100, // 100ms backoff between attempts
+  });
   await fs.mkdir(resolvedPath, { recursive: true });
 };
 
