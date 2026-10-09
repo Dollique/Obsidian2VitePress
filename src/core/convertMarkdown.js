@@ -6,6 +6,14 @@ export function convertMarkdown(note, context) {
   const { index, config, backlinks, referencedAssets, assetMap } = context;
   let markdown = note.content;
 
+  if (!referencedAssets || !assetMap) {
+    throw new Error(
+      `[convertMarkdown] Missing context: pass an object with ` +
+        `referencedAssets (Set) and assetMap (Map) — bare contexts cause ` +
+        `untracked asset copies.`,
+    );
+  }
+
   console.log(
     `[DEBUG convertMarkdown] Processing note: "${note.basename}" (route: ${note.route})`,
   );

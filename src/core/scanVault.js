@@ -2,14 +2,13 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { outputRouteForNote, routeForNote } from "./slug.js";
 import { parseFrontmatter, injectTitleToMarkdown } from "./frontmatter.js";
-import { convertMarkdown, collectBacklinks } from "./convertMarkdown.js";
+import { collectBacklinks } from "./convertMarkdown.js";
 import {
-  cleanDir,
   slash,
   isIncluded,
   normalizeGeneratedRelativeRoot,
   walk,
-  wordCreator,
+  stripEmbeddedAssets,
   randomizeWordsInText,
 } from "../utils.js";
 
@@ -48,43 +47,11 @@ const extractSplitContent = (content, config) => {
   return { publicContent, paywalledContent };
 };
 
-// Helper: Save paywalled content to serverDir using the slug/outputRoute logic (ALWAYS keeps original text)
-const savePaywalledContent = async (note, config, context) => {
-  const serverDir = config.serverDir || "server/paywalledNotes";
-  const serverPath = path.resolve(serverDir);
-
-  if (note.paywalledContent) {
-    // Server directory always receives the ORIGINAL unedited content
-    const convertedPaywalledContent = convertMarkdown(
-      { ...note, content: note.paywalledContent },
-      context,
-    );
-
-    const generatedRoute = outputRouteForNote(note, config);
-    const relativeOutputPath = `${generatedRoute.replace(/^\/+/, "")}.md`;
-    const filePath = path.join(serverPath, relativeOutputPath);
-    const fileDir = path.dirname(filePath);
-
-    try {
-      await fs.mkdir(fileDir, { recursive: true });
-      await fs.writeFile(filePath, convertedPaywalledContent, "utf8");
-      console.log(
-        `Saved original paywalled content for "${note.basename}" to serverDir: ${filePath}`,
-      );
-    } catch (error) {
-      console.error(
-        `Failed to write paywalled content for "${note.basename}": ${error.message}`,
-      );
-    }
-  }
-};
-
 // Main: Scan all vaults and create an index
 export const scanVaults = async (config) => {
   const notes = [];
   const pendingPaywallSaves = []; // Queue paywalled items to save after indexing
   const outDir = path.resolve(config.outDir);
-  const serverDir = config.serverDir || "server/paywalledNotes";
   const generatedRelativeRoot = normalizeGeneratedRelativeRoot(
     config.outputRouteBase,
   );
@@ -175,7 +142,9 @@ export const scanVaults = async (config) => {
 
         // 3. Append the mystical-paywall wrapper AFTER the component
         if (config.mysticalPaywall) {
-          const mysticalPaywalled = randomizeWordsInText(paywalledContent);
+          const mysticalPaywalled = randomizeWordsInText(
+            stripEmbeddedAssets(paywalledContent),
+          );
           modifiedPublicContent = `${modifiedPublicContent}\n\n<div class="mystical-paywall">\n\n${mysticalPaywalled}\n\n</div>`;
         }
 
@@ -242,25 +211,22 @@ export const scanVaults = async (config) => {
     }
   }
 
-  // All notes have been validated successfully.
-  // Only now clear the previous generated paywalled content.
-  await cleanDir(serverDir);
-
   // 1. Create index first so routes are computed
   const index = createNoteIndex(notes, config);
 
   // 2. Collect backlinks for full context
   const backlinks = collectBacklinks(notes, index, config);
-  const context = { index, config, backlinks };
 
-  // 3. Save original paywalled content to serverDir
   for (const note of pendingPaywallSaves) {
-    await savePaywalledContent(note, config, context);
+    note.outputRoute = outputRouteForNote(note, config);
+    note.route = routeForNote(note, config);
   }
 
   return {
     notes,
     index,
+    backlinks,
+    paywallNotes: pendingPaywallSaves,
   };
 };
 

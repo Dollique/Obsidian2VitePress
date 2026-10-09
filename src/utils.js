@@ -113,6 +113,20 @@ export const wordCreator = () => {
   return word;
 };
 
+// Helper: Remove image and embed syntax from text before public display.
+// Used for the mystical paywall teaser: paywalled assets must not reach
+// the public build (neither as rendered images nor as references that
+// make the asset copier ship them to outDir).
+// Must run BEFORE randomizeWordsInText — randomizing first would mangle
+// the path inside the embed, but leave the syntax intact (short names
+// below the 3-letter threshold even survive randomization entirely).
+export const stripEmbeddedAssets = (text) => {
+  return text
+    .replace(/!\[\[[^\]]+\]\]/g, "") // Obsidian embeds: ![[image.png|300]]
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "") // Markdown images: !alt
+    .replace(/\n{3,}/g, "\n\n"); // tidy up orphaned blank lines
+};
+
 // Helper: Replaces actual words with mystical words while preserving markdown, links, and punctuation
 export const randomizeWordsInText = (text) => {
   // Matches any sequence of letters 3 characters or longer, replacing each with a generated mystical word
