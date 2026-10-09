@@ -91,9 +91,9 @@ function convertWikilinks(
         ...parseInlineTarget(rawTarget),
       };
 
-      console.log(
+      /*console.log(
         `[DEBUG convertWikilinks] Found wikilink: "${raw}" (target: "${link.target}", isEmbed: ${link.isEmbed})`,
-      );
+      );*/
 
       const resolved = resolveWikiLink(link, note, index, config);
 

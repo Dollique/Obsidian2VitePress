@@ -15,7 +15,15 @@ export async function buildSite(userConfig) {
     await fs.mkdir(path.resolve(outDir), { recursive: true });
   }
 
-  const { notes, index } = await scanVaults(config);
+  let notes, index;
+
+  try {
+    ({ notes, index } = await scanVaults(config));
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+
   const backlinks = collectBacklinks(notes, index, config);
 
   // Build the asset lookup BEFORE converting notes

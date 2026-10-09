@@ -89,9 +89,6 @@ export const scanVaults = async (config) => {
     config.outputRouteBase,
   );
 
-  // Clear serverDir before processing to prevent stale files
-  await cleanDir(serverDir);
-
   for (const vault of config.vaults) {
     const root = path.resolve(vault.root);
     const files = await walk(root, {
@@ -128,6 +125,32 @@ export const scanVaults = async (config) => {
       const hasPaywallIndicator = content.includes(`{{ ${paywallIndicator} }}`);
 
       if (hasPaywallIndicator) {
+        const missingProperties = [];
+
+        if (
+          noteObj.frontmatter?.id === undefined ||
+          noteObj.frontmatter?.id === null ||
+          String(noteObj.frontmatter.id).trim() === ""
+        ) {
+          missingProperties.push("id");
+        }
+
+        if (!paywalled) {
+          missingProperties.push(
+            `${config.paywallProperty || "paywall"}: true`,
+          );
+        }
+
+        if (missingProperties.length > 0) {
+          throw new Error(
+            `[obsidian2vitepress] Invalid paywall note: "${relativePath}".\n` +
+              `The note contains {{ ${paywallIndicator} }} but is missing or has invalid required properties: ` +
+              `${missingProperties.join(", ")}.\n` +
+              `Every note containing the paywall marker must define a non-empty "id" and ` +
+              `"${config.paywallProperty || "paywall"}: true" in its frontmatter.`,
+          );
+        }
+
         // Rule 1: Split content via {{ PAYWALL }} indicator
         const { publicContent, paywalledContent } = extractSplitContent(
           content,
@@ -218,6 +241,10 @@ export const scanVaults = async (config) => {
       }
     }
   }
+
+  // All notes have been validated successfully.
+  // Only now clear the previous generated paywalled content.
+  await cleanDir(serverDir);
 
   // 1. Create index first so routes are computed
   const index = createNoteIndex(notes, config);
