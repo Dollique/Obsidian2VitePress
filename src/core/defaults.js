@@ -12,6 +12,8 @@ export const defaultConfig = {
   assets: {
     outDir: "assets",
     preserveFilenames: true,
+    wrapperElement: "", // "" = do not use a wrapper
+    customImageComponent: "", // "" = use default <img>-tag
   },
   embeds: {
     notes: "inline",

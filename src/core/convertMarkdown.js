@@ -165,14 +165,28 @@ function convertEmbed(
       cleanAlt = path.basename(link.target); // fallback alt if only dimensions were passed
     }
 
-    // If dimensions exist, output an HTML <img> tag to preserve width/height cleanly
-    if (width) {
-      const heightAttr = height ? ` data-height="${height}"` : "";
-      return `<img src="${assetPath}" alt="${escapeHtml(cleanAlt)}" data-width="${width}"${heightAttr}>`;
-    }
+    const dimensionAttrs = [
+      width ? `data-width="${width}"` : "",
+      height ? `data-height="${height}"` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
-    // Fallback to standard markdown image format if no dimensions specified
-    return `![${escapeMarkdownLinkText(alt)}](${assetPath})`;
+    const attributes = [
+      `src="${escapeHtml(assetPath)}"`,
+      `alt="${escapeHtml(cleanAlt)}"`,
+      dimensionAttrs,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const image = config.assets.customImageComponent
+      ? `<${config.assets.customImageComponent} ${attributes} />`
+      : `<img ${attributes} />`;
+
+    return config.assets.wrapperElement
+      ? `<div class="${escapeHtml(config.assets.wrapperElement)}">${image}</div>`
+      : image;
   }
 
   if (!resolved.exists) {
