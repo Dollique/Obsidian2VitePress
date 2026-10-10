@@ -412,7 +412,23 @@ function renderCalloutDocument(document, config) {
 
       return renderCallout(node, config);
     })
-    .join("\n");
+    .reduce((result, rendered, index) => {
+      if (index === 0) return rendered;
+
+      const previousIsCallout =
+        typeof document[index - 1] !== "string" ||
+        result.trimEnd().endsWith(":::");
+      const currentIsCallout = typeof document[index] !== "string";
+
+      /*
+       * A callout always needs a blank line before/after it,
+       * otherwise VitePress won't close the block and following
+       * content (e.g. headings) renders inside it.
+       */
+      const separator = previousIsCallout || currentIsCallout ? "\n\n" : "\n";
+
+      return `${result}${separator}${rendered}`;
+    }, "");
 }
 
 /**
