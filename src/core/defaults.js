@@ -14,6 +14,8 @@ export const defaultConfig = {
     preserveFilenames: true,
     wrapperElement: "", // "" = do not use a wrapper
     customImageComponent: "", // "" = use default <img>-tag
+    destinationType: "src", // "src" copies into outDir/pages, "public" copies into Vite's public dir
+    publicDir: "public", // used if destinationType is "public"
   },
   embeds: {
     notes: "inline",

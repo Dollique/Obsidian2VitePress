@@ -14,6 +14,7 @@ A local VitePress plugin that converts and imports Obsidian vault notes into Vit
 - **Backlink Generation:** Append backlink lists automatically to referenced target pages.
 - **Callout Support:** Convert Obsidian `> [!NOTE]` callout syntax into standard VitePress custom containers.
 - **Custom Image Rendering:** Configure image output to use standard HTML `<img>` tags or custom Vue components, with optional wrapper elements and support for image dimensions.
+- **Flexible Asset Destination:** Direct copied assets to either VitePress source (`src`) or Vite's `public` directory to ensure static links resolve properly.
 - **Paywall Management (`serverDir`, `paywallProperty`, `paywallIndicator`, `hidePaywalledContentInNavigation`):** Securely restrict full article bodies (stripping frontmatter) or split content dynamically, stamping `isFullyPaywalled` frontmatter metadata on public stubs to guide frontend navigation visibility.
 - **Mystical Paywall Teaser (`mysticalPaywall`):** Wrap locked paywalled content stubs in a `.mystical-paywall` container with randomized text placeholders for unauthenticated visitors to preview before unlocking.
 
@@ -23,10 +24,12 @@ Configure how assets are imported and how Obsidian image embeds are rendered.
 
 | Option                     | Type      | Default    | Description                                                                                                                                                                          |
 | :------------------------- | :-------- | :--------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`outDir`**               | `string`  | `"assets"` | Output directory for imported assets.                                                                                                                                                |
-| **`preserveFilenames`**    | `boolean` | `true`     | Preserve original asset filenames when importing assets.                                                                                                                             |
+| **`outDir`**               | `string`  | `"assets"` | Subfolder name/relative path where imported assets are placed.                                                                                                                       |
+| **`preserveFilenames`**    | `boolean` | `true`     | Preserve original asset filenames and relative vault subpaths when importing assets.                                                                                                 |
 | **`customImageComponent`** | `string`  | `""`       | Optional Vue component name used to render image embeds (e.g., `"ImageLightbox"`). An empty string outputs a standard HTML `<img>` tag.                                              |
 | **`wrapperElement`**       | `string`  | `""`       | Optional CSS class for a `<div>` wrapping each rendered image. For example, `"image-wrapper"` produces `<div class="image-wrapper">...</div>`. An empty string disables the wrapper. |
+| **`destinationType`**      | `string`  | `"src"`    | Asset output strategy: `"src"` copies assets into `outDir` (`srcDir`), `"public"` copies assets directly into Vite’s public directory.                                               |
+| **`publicDir`**            | `string`  | `"public"` | Path to Vite's public directory relative to the plugin execution root (used when `destinationType: "public"`).                                                                       |
 
 Image dimension attributes are included when dimensions are specified in the Obsidian embed. Images without explicit dimensions are still rendered using the configured image output.
 
@@ -74,6 +77,8 @@ export default defineConfig({
           preserveFilenames: true,
           customImageComponent: "ImageLightbox", // Empty string uses a standard <img> tag
           wrapperElement: "image-wrapper", // Empty string disables the wrapper
+          destinationType: "public", // "public" (copies to publicDir) or "src" (copies to outDir)
+          publicDir: "../public", // Path to public dir relative to config execution context
         },
 
         // Paywall configuration

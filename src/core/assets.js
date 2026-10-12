@@ -72,10 +72,14 @@ export async function copyReferencedAssets(
       ? assetMatch.relativePath
       : path.basename(assetMatch.absolutePath);
 
+    // If destinationType is 'public', destDir points to the public folder,
+    // so we place them directly inside public/<assetOutDirName>/...
     const destinationPath = path.join(
       resolvedDest,
-      assetOutDirName,
-      targetSubPath,
+      config.assets?.destinationType === "public" ? "" : assetOutDirName,
+      config.assets?.destinationType === "public"
+        ? path.join(assetOutDirName, targetSubPath)
+        : targetSubPath,
     );
 
     await fs.mkdir(path.dirname(destinationPath), { recursive: true });

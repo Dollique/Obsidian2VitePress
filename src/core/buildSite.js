@@ -48,14 +48,23 @@ export async function buildSite(userConfig) {
     await writeRoute(serverDir, note.outputRoute, markdown);
   }
 
-  // 3. Copy referenced assets — public refs to outDir, server refs to serverDir
+  // 3. Copy referenced assets based on configuration strategy
   if (config.embeds?.assets === "copy") {
+    const isPublicStrategy = config.assets?.destinationType === "public";
+
+    // Determine where public assets should go
+    const publicAssetDest = isPublicStrategy
+      ? path.resolve(config.assets.publicDir || "../../public")
+      : outDir;
+
     await copyReferencedAssets(
       config,
       publicContext.referencedAssets,
       assetMap,
-      outDir,
+      publicAssetDest,
     );
+
+    // For server/paywall notes, they usually still need their own copy if served privately
     await copyReferencedAssets(
       config,
       serverContext.referencedAssets,
